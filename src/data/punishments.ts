@@ -53,7 +53,7 @@ export const punishments: Punishment[] = [
       },
       {
         type: "video",
-        src: "/punishments/sam-nose.mov",
+        src: "https://duj9ui45abgcixri.public.blob.vercel-storage.com/Sam%20nose.mp4",
         label: "Video",
         width: 960,
         height: 540,
