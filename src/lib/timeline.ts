@@ -1,4 +1,4 @@
-import { events } from "@/data/events";
+import { events, futureEventSlots } from "@/data/events";
 import { memberById, members } from "@/data/members";
 import { PLACEMENT_POINTS } from "@/data/scoring";
 import {
@@ -27,6 +27,14 @@ export type RaceFrame = {
   racers: RaceRacer[];
 };
 
+export type RaceAxisMarker = {
+  id: string;
+  label: string;
+  progress: number;
+  eventType?: EventType | null;
+  isFuture?: boolean;
+};
+
 export type MemberTrailPath = {
   memberId: string;
   d: string;
@@ -45,16 +53,20 @@ export type InterpolatedRaceState = {
 };
 
 const CHART_COLORS: Record<string, string> = {
-  jack: "#f59e0b",
+  jack: "#2dd4bf",
   sergio: "#38bdf8",
   shadi: "#a78bfa",
-  sam: "#34d399",
-  aaron: "#fb7185",
+  sam: "#fb7185",
+  aaron: "#34d399",
   nigel: "#94a3b8",
 };
 
 const MAX_PLACEMENT_POINTS = PLACEMENT_POINTS[1];
 const RACE_HEADROOM = 1.1;
+const MIN_FUTURE_RUNWAY_WIDTH = 0.12;
+const MAX_FUTURE_RUNWAY_WIDTH = 0.34;
+const FUTURE_SLOT_RUNWAY_WIDTH = 0.04;
+const BASE_FUTURE_RUNWAY_WIDTH = 0.06;
 
 export function getChartColors(): Record<string, string> {
   return CHART_COLORS;
@@ -95,9 +107,43 @@ export function getRaceYAxisTicks(maxPoints: number): number[] {
   return ticks;
 }
 
-function getSeasonProgress(frameIndex: number, totalFrames: number): number {
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function getSlotDate(slot: (typeof futureEventSlots)[number]): Date {
+  return new Date(slot.year, slot.month - 1, 1);
+}
+
+function getRemainingFutureSlots(sortedEvents = getSortedEvents()) {
+  const latestEvent = sortedEvents[sortedEvents.length - 1];
+  if (!latestEvent) return futureEventSlots;
+
+  const latestEventDate = new Date(latestEvent.date + "T12:00:00");
+  return futureEventSlots.filter((slot) => getSlotDate(slot) > latestEventDate);
+}
+
+function getFutureRunwayWidth(remainingSlots: number): number {
+  if (remainingSlots === 0) return 0;
+  return clamp(
+    BASE_FUTURE_RUNWAY_WIDTH + remainingSlots * FUTURE_SLOT_RUNWAY_WIDTH,
+    MIN_FUTURE_RUNWAY_WIDTH,
+    MAX_FUTURE_RUNWAY_WIDTH,
+  );
+}
+
+function getLatestCompletedProgress(sortedEvents = getSortedEvents()): number {
+  const remainingSlots = getRemainingFutureSlots(sortedEvents).length;
+  return 1 - getFutureRunwayWidth(remainingSlots);
+}
+
+function getSeasonProgress(
+  frameIndex: number,
+  totalFrames: number,
+  latestCompletedProgress: number,
+): number {
   if (totalFrames <= 1) return 0;
-  return frameIndex / (totalFrames - 1);
+  return (frameIndex / (totalFrames - 1)) * latestCompletedProgress;
 }
 
 function buildRacersFromPointsMap(
@@ -128,18 +174,29 @@ function buildStartRacers(seasonProgress: number): RaceRacer[] {
 export function buildPointsRaceFrames(): RaceFrame[] {
   const sortedEvents = getSortedEvents();
   const totalFrames = sortedEvents.length + 1;
+  const latestCompletedProgress = getLatestCompletedProgress(sortedEvents);
 
   const frames: RaceFrame[] = [
     {
       id: "start",
       label: "Season Start",
-      seasonProgress: getSeasonProgress(0, totalFrames),
-      racers: buildStartRacers(getSeasonProgress(0, totalFrames)),
+      seasonProgress: getSeasonProgress(
+        0,
+        totalFrames,
+        latestCompletedProgress,
+      ),
+      racers: buildStartRacers(
+        getSeasonProgress(0, totalFrames, latestCompletedProgress),
+      ),
     },
   ];
 
   sortedEvents.forEach((event, index) => {
-    const seasonProgress = getSeasonProgress(index + 1, totalFrames);
+    const seasonProgress = getSeasonProgress(
+      index + 1,
+      totalFrames,
+      latestCompletedProgress,
+    );
     frames.push({
       id: event.id,
       label: event.name,
@@ -155,6 +212,25 @@ export function buildPointsRaceFrames(): RaceFrame[] {
   });
 
   return frames;
+}
+
+export function buildFutureRaceMarkers(): RaceAxisMarker[] {
+  const sortedEvents = getSortedEvents();
+  const remainingSlots = getRemainingFutureSlots(sortedEvents);
+  if (remainingSlots.length === 0) return [];
+
+  const latestCompletedProgress = getLatestCompletedProgress(sortedEvents);
+  const futureSpan = 1 - latestCompletedProgress;
+
+  return remainingSlots.map((slot, index) => ({
+    id: slot.id,
+    label: formatShortMonth(slot.month, slot.year),
+    progress:
+      latestCompletedProgress +
+      futureSpan * ((index + 1) / remainingSlots.length),
+    eventType: null,
+    isFuture: true,
+  }));
 }
 
 export function sampleTrailPoint(xProgress: number, yProgress: number) {
@@ -189,15 +265,17 @@ export function interpolateRaceAtProgress(
   seasonProgress: number,
 ): InterpolatedRaceState {
   const clamped = Math.min(Math.max(seasonProgress, 0), 1);
+  const latestFrame = frames[frames.length - 1];
+  const effectiveProgress = Math.min(clamped, latestFrame.seasonProgress);
   const maxPoints = getRaceMaxPoints();
 
   let prevFrame = frames[0];
-  let nextFrame = frames[frames.length - 1];
+  let nextFrame = latestFrame;
 
   for (let i = 0; i < frames.length - 1; i++) {
     if (
-      clamped >= frames[i].seasonProgress &&
-      clamped <= frames[i + 1].seasonProgress
+      effectiveProgress >= frames[i].seasonProgress &&
+      effectiveProgress <= frames[i + 1].seasonProgress
     ) {
       prevFrame = frames[i];
       nextFrame = frames[i + 1];
@@ -206,7 +284,8 @@ export function interpolateRaceAtProgress(
   }
 
   const span = nextFrame.seasonProgress - prevFrame.seasonProgress;
-  const t = span > 0 ? (clamped - prevFrame.seasonProgress) / span : 1;
+  const t =
+    span > 0 ? (effectiveProgress - prevFrame.seasonProgress) / span : 1;
 
   const pointsMap: Record<string, number> = {};
   for (const member of members) {
@@ -222,14 +301,14 @@ export function interpolateRaceAtProgress(
     memberId: entry.memberId,
     points: entry.points,
     rank: entry.rank,
-    xProgress: clamped,
+    xProgress: effectiveProgress,
     yProgress: getPointsProgress(entry.points, maxPoints),
   }));
 
   const eventFrames = frames.filter((frame) => frame.id !== "start");
   let activeEventId: string | null = null;
   for (const frame of eventFrames) {
-    if (clamped >= frame.seasonProgress) {
+    if (effectiveProgress >= frame.seasonProgress) {
       activeEventId = frame.id;
     } else {
       break;
@@ -274,6 +353,12 @@ function formatShortDate(date: string): string {
   return new Date(date + "T12:00:00").toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
+  });
+}
+
+function formatShortMonth(month: number, year: number): string {
+  return new Date(year, month - 1, 1).toLocaleDateString("en-US", {
+    month: "short",
   });
 }
 

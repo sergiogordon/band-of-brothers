@@ -1,26 +1,75 @@
 @import "tailwindcss";
 
 :root {
-  --background: #070b14;
-  --foreground: #e2e8f0;
-  --accent: #f59e0b;
-  --card: #0f172a;
-  --border: #334155;
+  --background: #030806;
+  --foreground: #f4efe4;
+  --accent: #19a974;
+  --card: #08130f;
+  --border: #214138;
+  --gold: #d6b35a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(circle at top left, rgba(25, 169, 116, 0.16), transparent 34rem),
+    radial-gradient(circle at top right, rgba(124, 32, 47, 0.14), transparent 32rem),
+    var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+  overflow-x: clip;
 }
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
+}
+
+@keyframes photo-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes photo-pop-in {
+  0% {
+    opacity: 0;
+    transform: translateY(24px) scale(0.78) rotate(-4deg);
+  }
+  62% {
+    opacity: 1;
+    transform: translateY(-8px) scale(1.03) rotate(1.5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes name-slam-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-28px) skewX(-9deg) scale(0.94);
+    filter: blur(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) skewX(0deg) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes photo-orbit {
+  to {
+    transform: rotate(1turn);
+  }
 }

@@ -6,6 +6,7 @@ type MemberAvatarProps = {
   size?: "sm" | "md" | "lg";
   className?: string;
   showRing?: boolean;
+  ringClassName?: string;
 };
 
 const sizeMap = {
@@ -19,6 +20,7 @@ export function MemberAvatar({
   size = "md",
   className = "",
   showRing = false,
+  ringClassName = "ring-emerald-300/70",
 }: MemberAvatarProps) {
   const member = memberById[memberId];
   if (!member) return null;
@@ -27,8 +29,8 @@ export function MemberAvatar({
 
   return (
     <div
-      className={`relative shrink-0 overflow-hidden rounded-full bg-slate-800 ${
-        showRing ? `${ring} ring-amber-400/70` : ""
+      className={`relative shrink-0 overflow-hidden rounded-full bg-emerald-950 ${
+        showRing ? `${ring} ${ringClassName}` : ""
       } ${className}`}
       style={{ width, height }}
     >

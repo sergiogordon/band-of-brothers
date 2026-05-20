@@ -190,18 +190,18 @@ export function Simulator() {
     <section id="simulator" className="scroll-mt-24">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-white">
+          <h2 className="text-2xl font-bold tracking-tight text-stone-50">
             What-If Simulator
           </h2>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-stone-400">
             Model future event outcomes from current standings through December
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex">
           <button
             type="button"
             onClick={reset}
-            className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800"
+            className="rounded-lg border border-emerald-900/70 px-3 py-2 text-sm text-stone-300 hover:bg-emerald-950/60 sm:py-1.5"
           >
             Reset
           </button>
@@ -209,14 +209,14 @@ export function Simulator() {
             type="button"
             onClick={addEvent}
             disabled={simEvents.length >= futureEventSlots.length}
-            className="rounded-lg bg-amber-500/90 px-3 py-1.5 text-sm font-medium text-slate-950 hover:bg-amber-400 disabled:opacity-40"
+            className="rounded-lg bg-emerald-400 px-3 py-2 text-sm font-medium text-emerald-950 hover:bg-emerald-300 disabled:opacity-40 sm:py-1.5"
           >
             + Add event
           </button>
         </div>
       </div>
 
-      <div className="mb-4 rounded-lg border border-slate-700/50 bg-slate-900/50 px-4 py-3 text-xs text-slate-400">
+      <div className="mb-4 rounded-lg border border-emerald-900/45 bg-emerald-950/20 px-4 py-3 text-xs text-stone-400">
         Scoring: 1st {PLACEMENT_POINTS[1]} · 2nd {PLACEMENT_POINTS[2]} · 3rd{" "}
         {PLACEMENT_POINTS[3]} · 4th {PLACEMENT_POINTS[4]} · 5th{" "}
         {PLACEMENT_POINTS[5]} · 6th {PLACEMENT_POINTS[6]}
@@ -230,18 +230,18 @@ export function Simulator() {
           return (
             <div
               key={`${sim.slotId}-${eventIndex}`}
-              className={`rounded-2xl border bg-slate-900/70 p-4 sm:p-6 ${
+              className={`rounded-2xl border bg-[#07100d]/75 p-4 shadow-inner shadow-stone-950/70 sm:p-6 ${
                 sim.modeled
                   ? "border-emerald-600/40"
-                  : "border-slate-700/50"
+                  : "border-emerald-900/45"
               }`}
             >
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="mb-4 grid gap-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
+                <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
                   <select
                     value={sim.slotId}
                     onChange={(e) => updateSlot(eventIndex, e.target.value)}
-                    className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white"
+                    className="min-w-0 rounded-lg border border-emerald-800/70 bg-[#06110e] px-3 py-2 text-sm text-stone-50"
                   >
                     {futureEventSlots.map((s) => {
                       const takenByOther =
@@ -267,7 +267,7 @@ export function Simulator() {
                   <button
                     type="button"
                     onClick={() => removeEvent(eventIndex)}
-                    className="text-xs text-slate-500 hover:text-red-400"
+                    className="justify-self-start text-xs text-stone-500 hover:text-red-300 sm:justify-self-auto"
                   >
                     Remove
                   </button>
@@ -280,10 +280,10 @@ export function Simulator() {
                   return (
                     <label
                       key={m.id}
-                      className="flex items-center gap-3 rounded-xl border border-slate-700/40 bg-slate-800/40 px-3 py-2"
+                      className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 rounded-xl border border-emerald-900/45 bg-emerald-950/20 px-3 py-2 sm:flex"
                     >
                       <MemberAvatar memberId={m.id} size="sm" />
-                      <span className="min-w-0 flex-1 text-sm font-medium text-white">
+                      <span className="min-w-0 flex-1 text-sm font-medium text-stone-50">
                         {m.name}
                       </span>
                       <select
@@ -297,7 +297,7 @@ export function Simulator() {
                               : (Number(e.target.value) as Placement),
                           )
                         }
-                        className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm text-white"
+                        className="col-span-2 min-w-0 rounded border border-emerald-800/70 bg-[#030806] px-2 py-2 text-sm text-stone-50 sm:col-span-1 sm:py-1"
                       >
                         <option value="">—</option>
                         {PLACEMENTS.map((p) => {
@@ -308,7 +308,7 @@ export function Simulator() {
                               key={p}
                               value={p}
                               disabled={disabled}
-                              className={disabled ? "text-slate-600" : ""}
+                              className={disabled ? "text-stone-600" : ""}
                             >
                               {placementLabel(p)}
                               {disabled ? " (taken)" : ""}
@@ -322,15 +322,15 @@ export function Simulator() {
               </div>
 
               {cardError && (
-                <p className="mt-3 text-sm text-amber-300/90">{cardError}</p>
+                <p className="mt-3 text-sm text-[#d6b35a]">{cardError}</p>
               )}
 
-              <div className="mt-4 flex justify-end">
+              <div className="mt-4 flex justify-stretch sm:justify-end">
                 <button
                   type="button"
                   onClick={() => modelEvent(eventIndex)}
                   disabled={!complete}
-                  className="rounded-lg bg-amber-500/90 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="w-full rounded-lg bg-emerald-400 px-4 py-2 text-sm font-medium text-emerald-950 hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
                 >
                   Model
                 </button>
@@ -342,18 +342,18 @@ export function Simulator() {
 
       <div className="mt-8">
         {!hasModeledEvents ? (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-stone-500">
             Model an event to see projected standings.
           </p>
         ) : (
           <>
             {newLeader && (
-              <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-center text-amber-200">
+              <div className="mb-4 rounded-xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-center text-emerald-100">
                 New season leader: <strong>{newLeader.name}</strong>
               </div>
             )}
 
-            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-400">
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-emerald-300/75">
               Projected standings
             </h3>
             <div className="space-y-2">
@@ -370,24 +370,24 @@ export function Simulator() {
                 return (
                   <div
                     key={entry.memberId}
-                    className="flex items-center gap-4 rounded-xl border border-slate-700/50 bg-slate-900/60 px-4 py-3"
+                    className="grid grid-cols-[auto_auto_1fr_auto] items-center gap-3 rounded-xl border border-emerald-900/45 bg-[#07100d]/75 px-3 py-3 sm:gap-4 sm:px-4"
                   >
-                    <span className="w-6 text-center text-sm font-bold text-slate-500">
+                    <span className="w-6 text-center text-sm font-bold text-stone-500">
                       {entry.rank}
                     </span>
                     <MemberAvatar memberId={entry.memberId} size="sm" />
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-white">{member.name}</p>
-                      <p className="text-xs text-slate-400">
+                      <p className="font-medium text-stone-50">{member.name}</p>
+                      <p className="text-xs text-stone-400">
                         Was #{base.rank}
                         {diff.delta > 0 && (
-                          <span className="text-emerald-400">
+                        <span className="text-emerald-300">
                             {" "}
                             ↑{diff.delta}
                           </span>
                         )}
                         {diff.delta < 0 && (
-                          <span className="text-red-400">
+                        <span className="text-red-300">
                             {" "}
                             ↓{Math.abs(diff.delta)}
                           </span>
@@ -395,11 +395,11 @@ export function Simulator() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xl font-bold text-white">
+                      <p className="text-xl font-bold text-stone-50">
                         {entry.points}
                       </p>
                       {ptsGained > 0 && (
-                        <p className="text-xs text-emerald-400">+{ptsGained}</p>
+                        <p className="text-xs text-emerald-300">+{ptsGained}</p>
                       )}
                     </div>
                   </div>
