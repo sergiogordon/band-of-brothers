@@ -21,7 +21,13 @@ function MediaFrame({ media }: { media: PunishmentMedia }) {
           src={media.src}
           controls
           preload="metadata"
-          className="h-auto w-full bg-black"
+          className="w-full bg-black object-contain"
+          style={{
+            aspectRatio:
+              media.width && media.height
+                ? `${media.width} / ${media.height}`
+                : undefined,
+          }}
         />
       )}
       {media.label && (
