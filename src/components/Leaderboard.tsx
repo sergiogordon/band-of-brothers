@@ -1,11 +1,17 @@
+"use client";
+
 import { memberById } from "@/data/members";
 import { LeaderboardPhotoViewer } from "@/components/LeaderboardPhotoViewer";
+import { useStoredSeasonResults } from "@/hooks/useStoredSeasonResults";
 import {
   formatEventDate,
   getLatestEvent,
-  getCurrentPointsMap,
   rankMembers,
 } from "@/lib/points";
+import {
+  buildCompletedEventSnapshots,
+  getLatestPointsMapWithStoredResults,
+} from "@/lib/season-results";
 
 const EVENT_SWING_POINTS = 60;
 
@@ -23,8 +29,11 @@ function raceNote(gap: number): string {
 }
 
 export function Leaderboard() {
-  const latest = getLatestEvent();
-  const ranked = rankMembers(getCurrentPointsMap());
+  const { results } = useStoredSeasonResults();
+  const completedResultEvents = buildCompletedEventSnapshots(results);
+  const latest =
+    completedResultEvents[completedResultEvents.length - 1] ?? getLatestEvent();
+  const ranked = rankMembers(getLatestPointsMapWithStoredResults(results));
   const podium = ranked.slice(0, 3);
   const rest = ranked.slice(3);
   const leader = ranked[0];

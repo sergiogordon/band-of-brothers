@@ -42,6 +42,15 @@ export type FutureEventSlot = {
   year: number;
 };
 
+export type StoredEventResult = {
+  id: string;
+  slotId: string;
+  name: string;
+  eventType: EventType;
+  date: string;
+  placements: Record<string, Placement | "">;
+};
+
 export type PunishmentMedia = {
   type: "image" | "video";
   src: string;

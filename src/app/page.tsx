@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Leaderboard } from "@/components/Leaderboard";
 import { Punishments } from "@/components/Punishments";
 import { SeasonTimeline } from "@/components/SeasonTimeline";
@@ -43,6 +44,12 @@ export default function Home() {
             >
               Punishments
             </a>
+            <Link
+              href="/events"
+              className="rounded-lg border border-[#d6b35a]/45 bg-[#d6b35a]/10 px-3 py-2 text-center font-medium text-[#d6b35a] hover:text-stone-50 sm:border-0 sm:bg-transparent sm:p-0"
+            >
+              Enter Results
+            </Link>
           </nav>
         </div>
       </header>
