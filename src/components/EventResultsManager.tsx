@@ -65,7 +65,7 @@ export function EventResultsManager() {
   const nextAvailableSlot = futureEventSlots.find(
     (slot) => !usedSlotIds.has(slot.id),
   );
-  const ranked = useMemo(() => rankMembers(getLivePointsMap()), [getLivePointsMap, results]);
+  const ranked = useMemo(() => rankMembers(getLivePointsMap()), [getLivePointsMap]);
   const completedCount = results.filter(isCompletedResult).length;
 
   function updateResultField<K extends keyof StoredEventResult>(

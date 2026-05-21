@@ -13,13 +13,13 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Without `POSTGRES_URL`, the app falls back to seeded data in [`src/data/events.ts`](src/data/events.ts).
 
-## Cross-device sync (Vercel Postgres)
+## Cross-device sync (Vercel Marketplace Postgres)
 
 Season events and entered results are stored in Postgres so every device sees the same data after deploy.
 
 ### One-time setup
 
-1. In the [Vercel dashboard](https://vercel.com), open the project → **Storage** → create a **Postgres** database.
+1. In the [Vercel dashboard](https://vercel.com), open the project → **Storage** and add a Marketplace Postgres integration such as Neon.
 2. Vercel links `POSTGRES_URL` to the project automatically.
 3. For local dev, copy the connection string into `.env.local` (see [`.env.example`](.env.example)).
 4. Seed the 2026 season (creates the table and inserts the four existing events):
