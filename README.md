@@ -1,6 +1,6 @@
 # Band of Brothers
 
-Season leaderboard, historical timeline, and what-if simulator for the Band of Brothers men's group (2026 season).
+Season leaderboard, timeline, and what-if simulator for the Band of Brothers men's group (2026 season).
 
 ## Run locally
 
@@ -11,25 +11,32 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-## Update standings after an event
+Without `POSTGRES_URL`, the app falls back to seeded data in [`src/data/events.ts`](src/data/events.ts).
 
-1. Open [`src/data/events.ts`](src/data/events.ts).
-2. Append a new event object with the **cumulative** standings after that event (sorted by points, highest first).
-3. Use an ISO date string (`YYYY-MM-DD`) and a unique `id`.
+## Cross-device sync (Vercel Postgres)
 
-Example:
+Season events and entered results are stored in Postgres so every device sees the same data after deploy.
 
-```ts
-{
-  id: "poker-jun-2026",
-  name: "Poker Night",
-  date: "2026-06-15",
-  standings: [
-    { memberId: "jack", points: 230 },
-    // ...
-  ],
-},
+### One-time setup
+
+1. In the [Vercel dashboard](https://vercel.com), open the project → **Storage** → create a **Postgres** database.
+2. Vercel links `POSTGRES_URL` to the project automatically.
+3. For local dev, copy the connection string into `.env.local` (see [`.env.example`](.env.example)).
+4. Seed the 2026 season (creates the table and inserts the four existing events):
+
+```bash
+npm run seed:season
 ```
+
+Safe to re-run — it skips insert if the season row already exists.
+
+### Update standings after an event
+
+1. Open [`/events`](http://localhost:3000/events) on any device.
+2. Add the month, enter placements, and save — drafts sync to Postgres automatically.
+3. Completed valid months update the homepage leaderboard, timeline, and race chart for everyone.
+
+No redeploy needed for new results.
 
 ## Adjust scoring
 
@@ -47,8 +54,12 @@ Works on [Vercel](https://vercel.com) out of the box:
 npm run build
 ```
 
+After connecting Postgres in Vercel, run `npm run seed:season` once with `POSTGRES_URL` set (locally against the production DB, or via a one-off script).
+
 ## Project structure
 
-- `src/data/` — members, events, scoring rules
-- `src/lib/` — points engine and timeline helpers
-- `src/components/` — Leaderboard, SeasonTimeline, Simulator UI
+- `src/data/` — members, schedule slots, scoring rules, dev fallback events
+- `src/lib/db/` — Postgres read/write for season state
+- `src/lib/` — points engine, timeline helpers, season merge logic
+- `src/app/actions/` — Server Actions for season sync
+- `src/components/` — Leaderboard, SeasonTimeline, Simulator UI, SeasonProvider

@@ -2,16 +2,8 @@
 
 import { memberById } from "@/data/members";
 import { LeaderboardPhotoViewer } from "@/components/LeaderboardPhotoViewer";
-import { useStoredSeasonResults } from "@/hooks/useStoredSeasonResults";
-import {
-  formatEventDate,
-  getLatestEvent,
-  rankMembers,
-} from "@/lib/points";
-import {
-  buildCompletedEventSnapshots,
-  getLatestPointsMapWithStoredResults,
-} from "@/lib/season-results";
+import { useSeasonState } from "@/components/SeasonProvider";
+import { formatEventDate, rankMembers } from "@/lib/points";
 
 const EVENT_SWING_POINTS = 60;
 
@@ -29,11 +21,9 @@ function raceNote(gap: number): string {
 }
 
 export function Leaderboard() {
-  const { results } = useStoredSeasonResults();
-  const completedResultEvents = buildCompletedEventSnapshots(results);
-  const latest =
-    completedResultEvents[completedResultEvents.length - 1] ?? getLatestEvent();
-  const ranked = rankMembers(getLatestPointsMapWithStoredResults(results));
+  const { mergedEvents, getLatestPointsMap, isSyncing } = useSeasonState();
+  const latest = mergedEvents[mergedEvents.length - 1];
+  const ranked = rankMembers(getLatestPointsMap());
   const podium = ranked.slice(0, 3);
   const rest = ranked.slice(3);
   const leader = ranked[0];
@@ -44,6 +34,8 @@ export function Leaderboard() {
   const leaderPoints = Math.max(leader.points, 1);
   const topThreeSpread = third ? leader.points - third.points : 0;
 
+  if (!latest) return null;
+
   return (
     <section id="leaderboard" className="scroll-mt-24">
       <div className="mb-6 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -53,6 +45,7 @@ export function Leaderboard() {
           </h2>
           <p className="text-sm text-stone-400">
             Last updated: {latest.name} · {formatEventDate(latest.date)}
+            {isSyncing ? " · Syncing…" : ""}
           </p>
         </div>
         <p className="text-xs uppercase tracking-widest text-emerald-300/80">

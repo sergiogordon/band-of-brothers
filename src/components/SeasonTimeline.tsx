@@ -4,12 +4,13 @@ import { useCallback, useState } from "react";
 import { EventIcon } from "@/components/EventIcon";
 import { MemberAvatar } from "@/components/MemberAvatar";
 import { PointsRaceChart } from "@/components/PointsRaceChart";
+import { useSeasonState } from "@/components/SeasonProvider";
 import { memberById } from "@/data/members";
-import { getSortedEvents, formatEventDate } from "@/lib/points";
+import { formatEventDate } from "@/lib/points";
 import { getEventLeaderInfo } from "@/lib/timeline";
 
 export function SeasonTimeline() {
-  const sortedEvents = getSortedEvents();
+  const { mergedEvents } = useSeasonState();
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
 
   const handleActiveEventChange = useCallback((eventId: string | null) => {
@@ -29,7 +30,7 @@ export function SeasonTimeline() {
       </div>
 
       <div className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {sortedEvents.map((event) => {
+        {mergedEvents.map((event) => {
           const { member } = getEventLeaderInfo(event);
           const standings = [...event.standings].sort(
             (a, b) => b.points - a.points,
@@ -81,7 +82,10 @@ export function SeasonTimeline() {
         })}
       </div>
 
-      <PointsRaceChart onActiveEventChange={handleActiveEventChange} />
+      <PointsRaceChart
+        events={mergedEvents}
+        onActiveEventChange={handleActiveEventChange}
+      />
     </section>
   );
 }

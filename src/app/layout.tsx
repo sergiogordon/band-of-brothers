@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { SeasonProvider } from "@/components/SeasonProvider";
+import { getSeasonState } from "@/lib/db/season";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -18,17 +20,21 @@ export const metadata: Metadata = {
     "Season leaderboard, timeline, and what-if simulator for the Band of Brothers men's group.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const initialState = await getSeasonState();
+
   return (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-[#030806] text-stone-100">{children}</body>
+      <body className="min-h-full bg-[#030806] text-stone-100">
+        <SeasonProvider initialState={initialState}>{children}</SeasonProvider>
+      </body>
     </html>
   );
 }

@@ -67,3 +67,8 @@ export type Punishment = {
   chosenByMemberId?: string;
   media?: PunishmentMedia[];
 };
+
+export type SeasonState = {
+  events: EventSnapshot[];
+  drafts: StoredEventResult[];
+};

@@ -3,16 +3,15 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { MemberAvatar } from "@/components/MemberAvatar";
+import { useSeasonState } from "@/components/SeasonProvider";
 import { futureEventSlots } from "@/data/events";
 import { memberById, members } from "@/data/members";
 import { PLACEMENT_POINTS, PLACEMENTS } from "@/data/scoring";
-import { useStoredSeasonResults } from "@/hooks/useStoredSeasonResults";
 import { rankMembers } from "@/lib/points";
 import {
   defaultEventDate,
   emptyPlacementMap,
   getFutureSlot,
-  getLivePointsMap,
   getPlacementStatus,
   isCompletedResult,
   placementsRecordToFilled,
@@ -51,9 +50,13 @@ export function EventResultsManager() {
     addResult,
     removeResult,
     resetResults,
-    results,
+    state,
     updateResult,
-  } = useStoredSeasonResults();
+    isSyncing,
+    syncError,
+    getLivePointsMap,
+  } = useSeasonState();
+  const results = state.drafts;
 
   const usedSlotIds = useMemo(
     () => new Set(results.map((result) => result.slotId)),
@@ -62,7 +65,7 @@ export function EventResultsManager() {
   const nextAvailableSlot = futureEventSlots.find(
     (slot) => !usedSlotIds.has(slot.id),
   );
-  const ranked = useMemo(() => rankMembers(getLivePointsMap(results)), [results]);
+  const ranked = useMemo(() => rankMembers(getLivePointsMap()), [getLivePointsMap, results]);
   const completedCount = results.filter(isCompletedResult).length;
 
   function updateResultField<K extends keyof StoredEventResult>(
@@ -116,14 +119,16 @@ export function EventResultsManager() {
                 Future Event Placements
               </h1>
               <p className="mt-2 max-w-2xl text-stone-400">
-                Add June and every month after it. Changes preview immediately
-                here, and completed valid months update the main leaderboard.
+                Add June and every month after it. Changes sync across devices
+                and update the main leaderboard when complete.
+                {isSyncing ? " Syncing…" : ""}
+                {syncError ? ` ${syncError}` : ""}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex">
               <button
                 type="button"
-                onClick={() => nextAvailableSlot && addResult(nextAvailableSlot.id)}
+                onClick={() => nextAvailableSlot && void addResult(nextAvailableSlot.id)}
                 disabled={!nextAvailableSlot}
                 className="rounded-lg bg-emerald-400 px-3 py-2 text-sm font-medium text-emerald-950 hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
               >
@@ -131,7 +136,7 @@ export function EventResultsManager() {
               </button>
               <button
                 type="button"
-                onClick={resetResults}
+                onClick={() => void resetResults()}
                 disabled={results.length === 0}
                 className="rounded-lg border border-emerald-900/70 px-3 py-2 text-sm text-stone-300 hover:bg-emerald-950/60 disabled:cursor-not-allowed disabled:opacity-40"
               >
@@ -155,7 +160,7 @@ export function EventResultsManager() {
               </p>
               <button
                 type="button"
-                onClick={() => addResult(futureEventSlots[0].id)}
+                onClick={() => void addResult(futureEventSlots[0].id)}
                 className="mt-5 rounded-lg bg-emerald-400 px-4 py-2 text-sm font-medium text-emerald-950 hover:bg-emerald-300"
               >
                 Add June 2026
@@ -188,7 +193,7 @@ export function EventResultsManager() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => removeResult(result.id)}
+                      onClick={() => void removeResult(result.id)}
                       className="justify-self-start text-sm text-stone-500 hover:text-red-300 lg:justify-self-end"
                     >
                       Remove

@@ -1,4 +1,4 @@
-import { events, futureEventSlots } from "@/data/events";
+import { futureEventSlots } from "@/data/events";
 import { memberById, members } from "@/data/members";
 import { PLACEMENT_POINTS } from "@/data/scoring";
 import {
@@ -72,7 +72,7 @@ export function getChartColors(): Record<string, string> {
   return CHART_COLORS;
 }
 
-export function getRaceMaxPoints(): number {
+export function getRaceMaxPoints(events: EventSnapshot[]): number {
   const allPoints = events.flatMap((event) =>
     event.standings.map((standing) => standing.points),
   );
@@ -81,10 +81,12 @@ export function getRaceMaxPoints(): number {
   return Math.ceil(Math.max(peak, baseline) * RACE_HEADROOM);
 }
 
-export function getPointsProgress(points: number, maxPoints?: number): number {
-  const max = maxPoints ?? getRaceMaxPoints();
-  if (max <= 0) return 0;
-  return Math.min(Math.max(points / max, 0), 1);
+export function getPointsProgress(
+  points: number,
+  maxPoints: number,
+): number {
+  if (maxPoints <= 0) return 0;
+  return Math.min(Math.max(points / maxPoints, 0), 1);
 }
 
 export function getRaceYAxisTicks(maxPoints: number): number[] {
@@ -115,7 +117,7 @@ function getSlotDate(slot: (typeof futureEventSlots)[number]): Date {
   return new Date(slot.year, slot.month - 1, 1);
 }
 
-function getRemainingFutureSlots(sortedEvents = getSortedEvents()) {
+function getRemainingFutureSlots(sortedEvents: EventSnapshot[]) {
   const latestEvent = sortedEvents[sortedEvents.length - 1];
   if (!latestEvent) return futureEventSlots;
 
@@ -132,7 +134,7 @@ function getFutureRunwayWidth(remainingSlots: number): number {
   );
 }
 
-function getLatestCompletedProgress(sortedEvents = getSortedEvents()): number {
+function getLatestCompletedProgress(sortedEvents: EventSnapshot[]): number {
   const remainingSlots = getRemainingFutureSlots(sortedEvents).length;
   return 1 - getFutureRunwayWidth(remainingSlots);
 }
@@ -149,8 +151,8 @@ function getSeasonProgress(
 function buildRacersFromPointsMap(
   pointsMap: Record<string, number>,
   seasonProgress: number,
+  maxPoints: number,
 ): RaceRacer[] {
-  const maxPoints = getRaceMaxPoints();
   const ranked = rankMembers(pointsMap);
   return ranked.map((entry) => ({
     memberId: entry.memberId,
@@ -171,10 +173,11 @@ function buildStartRacers(seasonProgress: number): RaceRacer[] {
   }));
 }
 
-export function buildPointsRaceFrames(): RaceFrame[] {
-  const sortedEvents = getSortedEvents();
+export function buildPointsRaceFrames(events: EventSnapshot[]): RaceFrame[] {
+  const sortedEvents = getSortedEvents(events);
   const totalFrames = sortedEvents.length + 1;
   const latestCompletedProgress = getLatestCompletedProgress(sortedEvents);
+  const maxPoints = getRaceMaxPoints(sortedEvents);
 
   const frames: RaceFrame[] = [
     {
@@ -207,6 +210,7 @@ export function buildPointsRaceFrames(): RaceFrame[] {
       racers: buildRacersFromPointsMap(
         standingsToMap(event.standings),
         seasonProgress,
+        maxPoints,
       ),
     });
   });
@@ -214,8 +218,8 @@ export function buildPointsRaceFrames(): RaceFrame[] {
   return frames;
 }
 
-export function buildFutureRaceMarkers(): RaceAxisMarker[] {
-  const sortedEvents = getSortedEvents();
+export function buildFutureRaceMarkers(events: EventSnapshot[]): RaceAxisMarker[] {
+  const sortedEvents = getSortedEvents(events);
   const remainingSlots = getRemainingFutureSlots(sortedEvents);
   if (remainingSlots.length === 0) return [];
 
@@ -263,11 +267,11 @@ export function buildTrailFromSamples(
 export function interpolateRaceAtProgress(
   frames: RaceFrame[],
   seasonProgress: number,
+  maxPoints: number,
 ): InterpolatedRaceState {
   const clamped = Math.min(Math.max(seasonProgress, 0), 1);
   const latestFrame = frames[frames.length - 1];
   const effectiveProgress = Math.min(clamped, latestFrame.seasonProgress);
-  const maxPoints = getRaceMaxPoints();
 
   let prevFrame = frames[0];
   let nextFrame = latestFrame;

@@ -19,7 +19,7 @@ import {
   type MemberTrailPath,
   type TrailSample,
 } from "@/lib/timeline";
-import type { EventType } from "@/lib/types";
+import type { EventSnapshot, EventType } from "@/lib/types";
 
 const RACE_LOOP_MS = 18000;
 const TRAIL_SAMPLE_MS = 150;
@@ -33,16 +33,20 @@ type DisplayRacer = {
 };
 
 type PointsRaceChartProps = {
+  events: EventSnapshot[];
   onActiveEventChange?: (eventId: string | null) => void;
 };
 
-export function PointsRaceChart({ onActiveEventChange }: PointsRaceChartProps) {
-  const frames = useMemo(() => buildPointsRaceFrames(), []);
-  const futureMarkers = useMemo(() => buildFutureRaceMarkers(), []);
+export function PointsRaceChart({ events, onActiveEventChange }: PointsRaceChartProps) {
+  const frames = useMemo(() => buildPointsRaceFrames(events), [events]);
+  const futureMarkers = useMemo(() => buildFutureRaceMarkers(events), [events]);
   const colors = getChartColors();
-  const maxPoints = getRaceMaxPoints();
+  const maxPoints = useMemo(() => getRaceMaxPoints(events), [events]);
   const yAxisTicks = useMemo(() => getRaceYAxisTicks(maxPoints), [maxPoints]);
-  const initialRace = useMemo(() => interpolateRaceAtProgress(frames, 0), [frames]);
+  const initialRace = useMemo(
+    () => interpolateRaceAtProgress(frames, 0, maxPoints),
+    [frames, maxPoints],
+  );
 
   const [isPlaying, setIsPlaying] = useState(true);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -104,7 +108,7 @@ export function PointsRaceChart({ onActiveEventChange }: PointsRaceChartProps) {
     lastActiveEventRef.current = null;
     lastProgressRef.current = 0;
 
-    const initial = interpolateRaceAtProgress(frames, 0);
+    const initial = interpolateRaceAtProgress(frames, 0, maxPoints);
     setDisplayRacers(
       initial.racers.map((racer) => ({
         memberId: racer.memberId,
@@ -118,7 +122,7 @@ export function PointsRaceChart({ onActiveEventChange }: PointsRaceChartProps) {
     setActiveEventType(initial.activeEventType);
     onActiveEventChange?.(null);
     setTrailPaths(buildTrailFromSamples({}));
-  }, [frames, onActiveEventChange]);
+  }, [frames, maxPoints, onActiveEventChange]);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -155,6 +159,7 @@ export function PointsRaceChart({ onActiveEventChange }: PointsRaceChartProps) {
       const interpolated = interpolateRaceAtProgress(
         frames,
         raceProgressRef.current,
+        maxPoints,
       );
 
       if (interpolated.activeEventId !== lastActiveEventRef.current) {
@@ -215,7 +220,7 @@ export function PointsRaceChart({ onActiveEventChange }: PointsRaceChartProps) {
       }
       loopStartRef.current = null;
     };
-  }, [frames, isPlaying, onActiveEventChange, reducedMotion]);
+  }, [frames, isPlaying, maxPoints, onActiveEventChange, reducedMotion]);
 
   const handleRestart = useCallback(() => {
     resetRace();

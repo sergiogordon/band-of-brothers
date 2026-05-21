@@ -129,8 +129,9 @@ export function sortStoredResults(
 
 export function buildCompletedEventSnapshots(
   storedResults: StoredEventResult[],
+  baseEvents?: EventSnapshot[],
 ): EventSnapshot[] {
-  let points = getCurrentPointsMap();
+  let points = getCurrentPointsMap(baseEvents);
   const snapshots: EventSnapshot[] = [];
 
   for (const result of sortStoredResults(storedResults)) {
@@ -154,15 +155,18 @@ export function buildCompletedEventSnapshots(
 
 export function getEventsWithStoredResults(
   storedResults: StoredEventResult[],
+  baseEvents?: EventSnapshot[],
 ): EventSnapshot[] {
-  return [...getSortedEvents(), ...buildCompletedEventSnapshots(storedResults)];
+  const events = baseEvents ?? getSortedEvents();
+  return [...events, ...buildCompletedEventSnapshots(storedResults, events)];
 }
 
 export function getLatestPointsMapWithStoredResults(
   storedResults: StoredEventResult[],
+  baseEvents?: EventSnapshot[],
 ): Record<string, number> {
-  const completed = buildCompletedEventSnapshots(storedResults);
-  if (completed.length === 0) return getCurrentPointsMap();
+  const completed = buildCompletedEventSnapshots(storedResults, baseEvents);
+  if (completed.length === 0) return getCurrentPointsMap(baseEvents);
 
   return Object.fromEntries(
     completed[completed.length - 1].standings.map((standing) => [
@@ -174,8 +178,9 @@ export function getLatestPointsMapWithStoredResults(
 
 export function getLivePointsMap(
   storedResults: StoredEventResult[],
+  baseEvents?: EventSnapshot[],
 ): Record<string, number> {
-  let points = getCurrentPointsMap();
+  let points = getCurrentPointsMap(baseEvents);
 
   for (const result of sortStoredResults(storedResults)) {
     const status = getPlacementStatus(result.placements);

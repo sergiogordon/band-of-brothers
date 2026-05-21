@@ -5,9 +5,9 @@ import { members, memberById } from "@/data/members";
 import { futureEventSlots } from "@/data/events";
 import { PLACEMENT_POINTS, PLACEMENTS } from "@/data/scoring";
 import { MemberAvatar } from "@/components/MemberAvatar";
+import { useSeasonState } from "@/components/SeasonProvider";
 import {
   applyPlacements,
-  getCurrentPointsMap,
   rankMembers,
   validatePlacements,
 } from "@/lib/points";
@@ -62,7 +62,8 @@ function placementLabel(p: Placement): string {
 }
 
 export function Simulator() {
-  const basePoints = getCurrentPointsMap();
+  const { getLatestPointsMap } = useSeasonState();
+  const basePoints = getLatestPointsMap();
   const baseRanked = rankMembers(basePoints);
   const [simEvents, setSimEvents] = useState<SimEvent[]>([
     newSimEvent(futureEventSlots[0].id),

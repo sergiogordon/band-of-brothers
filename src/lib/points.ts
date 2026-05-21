@@ -1,4 +1,4 @@
-import { events } from "@/data/events";
+import { events as seedEvents } from "@/data/events";
 import { members } from "@/data/members";
 import { pointsForPlacement } from "@/data/scoring";
 import type {
@@ -9,14 +9,14 @@ import type {
   StandingEntry,
 } from "@/lib/types";
 
-export function getSortedEvents(): EventSnapshot[] {
-  return [...events].sort(
+export function getSortedEvents(eventList: EventSnapshot[] = seedEvents): EventSnapshot[] {
+  return [...eventList].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
   );
 }
 
-export function getLatestEvent(): EventSnapshot {
-  const sorted = getSortedEvents();
+export function getLatestEvent(eventList: EventSnapshot[] = seedEvents): EventSnapshot {
+  const sorted = getSortedEvents(eventList);
   return sorted[sorted.length - 1];
 }
 
@@ -31,8 +31,8 @@ export function standingsToMap(standings: StandingEntry[]): Record<string, numbe
   return map;
 }
 
-export function getCurrentPointsMap(): Record<string, number> {
-  return standingsToMap(getLatestEvent().standings);
+export function getCurrentPointsMap(eventList: EventSnapshot[] = seedEvents): Record<string, number> {
+  return standingsToMap(getLatestEvent(eventList).standings);
 }
 
 export function rankMembers(pointsMap: Record<string, number>): RankedMember[] {
