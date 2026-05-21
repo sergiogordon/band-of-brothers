@@ -29,7 +29,14 @@ export function SeasonTimeline() {
         </p>
       </div>
 
-      <div className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-10">
+        <PointsRaceChart
+          events={mergedEvents}
+          onActiveEventChange={handleActiveEventChange}
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {mergedEvents.map((event) => {
           const { member } = getEventLeaderInfo(event);
           const standings = [...event.standings].sort(
@@ -81,11 +88,6 @@ export function SeasonTimeline() {
           );
         })}
       </div>
-
-      <PointsRaceChart
-        events={mergedEvents}
-        onActiveEventChange={handleActiveEventChange}
-      />
     </section>
   );
 }
