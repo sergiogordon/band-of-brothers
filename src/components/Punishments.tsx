@@ -1,42 +1,5 @@
-import Image from "next/image";
 import { completedPunishments, availablePunishments } from "@/data/punishments";
 import { memberById } from "@/data/members";
-import type { PunishmentMedia } from "@/lib/types";
-
-function MediaFrame({ media }: { media: PunishmentMedia }) {
-  return (
-    <div className="overflow-hidden rounded-xl border border-emerald-900/55 bg-[#030806]/80">
-      {media.type === "image" ? (
-        <Image
-          src={media.src}
-          alt={media.alt ?? ""}
-          width={media.width ?? 720}
-          height={media.height ?? 720}
-          className="h-auto w-full"
-          sizes="(min-width: 1024px) 320px, (min-width: 640px) 45vw, 100vw"
-        />
-      ) : (
-        <video
-          src={media.src}
-          controls
-          preload="metadata"
-          className="w-full bg-black object-contain"
-          style={{
-            aspectRatio:
-              media.width && media.height
-                ? `${media.width} / ${media.height}`
-                : undefined,
-          }}
-        />
-      )}
-      {media.label && (
-        <p className="border-t border-emerald-950/80 px-3 py-2 text-xs font-medium uppercase tracking-wider text-stone-400">
-          {media.label}
-        </p>
-      )}
-    </div>
-  );
-}
 
 export function Punishments() {
   return (
@@ -91,7 +54,7 @@ export function Punishments() {
                   key={punishment.id}
                   className="rounded-2xl border border-red-900/45 bg-[linear-gradient(180deg,rgba(124,32,47,0.12),rgba(7,16,13,0.78)_42%,rgba(5,12,10,0.94))] p-4 shadow-inner shadow-stone-950/80 sm:p-5"
                 >
-                  <div className="mb-4 flex items-start justify-between gap-4">
+                  <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wider text-red-200/80">
                         Claimed by {member?.name ?? "Previous loser"}
@@ -104,14 +67,6 @@ export function Punishments() {
                       Retired
                     </span>
                   </div>
-
-                  {punishment.media && (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {punishment.media.map((media) => (
-                        <MediaFrame key={media.src} media={media} />
-                      ))}
-                    </div>
-                  )}
                 </article>
               );
             })}
