@@ -16,13 +16,7 @@ import {
   isCompletedResult,
   placementsRecordToFilled,
 } from "@/lib/season-results";
-import type { EventType, Placement, StoredEventResult } from "@/lib/types";
-
-const eventTypeOptions: { value: EventType; label: string }[] = [
-  { value: "poker", label: "Poker" },
-  { value: "golf", label: "Golf" },
-  { value: "bowling", label: "Bowling" },
-];
+import type { Placement, StoredEventResult } from "@/lib/types";
 
 function placementLabel(placement: Placement): string {
   const suffix =
@@ -238,23 +232,19 @@ export function EventResultsManager() {
                     </label>
                     <label className="text-xs font-semibold uppercase tracking-widest text-emerald-300/70">
                       Type
-                      <select
+                      <input
+                        type="text"
                         value={result.eventType}
                         onChange={(event) =>
                           updateResultField(
                             result.id,
                             "eventType",
-                            event.target.value as EventType,
+                            event.target.value,
                           )
                         }
+                        placeholder="Type"
                         className="mt-2 block w-full rounded-lg border border-emerald-800/70 bg-[#030806] px-3 py-2 text-sm normal-case tracking-normal text-stone-50"
-                      >
-                        {eventTypeOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </label>
                   </div>
 

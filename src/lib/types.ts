@@ -10,7 +10,8 @@ export type StandingEntry = {
   points: number;
 };
 
-export type EventType = "golf" | "poker" | "bowling";
+export type KnownEventType = "golf" | "poker" | "bowling";
+export type EventType = string;
 
 export type EventSnapshot = {
   id: string;

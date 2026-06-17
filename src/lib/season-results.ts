@@ -4,7 +4,6 @@ import { applyPlacements, getCurrentPointsMap, getSortedEvents } from "@/lib/poi
 import type {
   EventPlacement,
   EventSnapshot,
-  EventType,
   FutureEventSlot,
   Placement,
   StoredEventResult,
@@ -12,7 +11,7 @@ import type {
 
 export const SEASON_RESULTS_STORAGE_KEY = "band-of-brothers-season-results-v1";
 
-const DEFAULT_EVENT_TYPE: EventType = "poker";
+const DEFAULT_EVENT_TYPE = "";
 
 export function emptyPlacementMap(): Record<string, Placement | ""> {
   return Object.fromEntries(members.map((member) => [member.id, ""]));
@@ -65,12 +64,7 @@ export function normalizeStoredEventResult(
     ...base,
     id: typeof raw.id === "string" && raw.id ? raw.id : base.id,
     name: typeof raw.name === "string" && raw.name.trim() ? raw.name : base.name,
-    eventType:
-      raw.eventType === "golf" ||
-      raw.eventType === "poker" ||
-      raw.eventType === "bowling"
-        ? raw.eventType
-        : base.eventType,
+    eventType: typeof raw.eventType === "string" ? raw.eventType : base.eventType,
     date:
       typeof raw.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.date)
         ? raw.date

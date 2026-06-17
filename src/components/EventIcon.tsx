@@ -1,5 +1,5 @@
 import Image from "next/image";
-import type { EventType } from "@/lib/types";
+import type { EventType, KnownEventType } from "@/lib/types";
 
 type EventIconProps = {
   type: EventType;
@@ -12,7 +12,7 @@ const sizeClasses = {
   md: "h-6 w-6",
 } as const;
 
-const eventImages: Record<EventType, string> = {
+const eventImages: Record<KnownEventType, string> = {
   golf: "/events/puttshack.png",
   poker: "/events/poker-night.png",
   bowling: "/events/bowling.png",
@@ -23,7 +23,10 @@ export function EventIcon({
   size = "sm",
   className = "",
 }: EventIconProps) {
-  const imageSrc = eventImages[type];
+  const imageSrc =
+    type in eventImages
+      ? eventImages[type as KnownEventType]
+      : eventImages.poker;
 
   return (
     <Image

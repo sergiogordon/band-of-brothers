@@ -12,10 +12,10 @@ import {
   placementsRecordToFilled,
   sortStoredResults,
 } from "@/lib/season-results";
-import type { EventSnapshot, EventType, SeasonState, StandingEntry } from "@/lib/types";
+import type { EventSnapshot, SeasonState, StandingEntry } from "@/lib/types";
 
-function isValidEventType(value: unknown): value is EventType {
-  return value === "golf" || value === "poker" || value === "bowling";
+function isValidEventType(value: unknown): value is string {
+  return typeof value === "string";
 }
 
 export function normalizeEventSnapshot(raw: Partial<EventSnapshot>): EventSnapshot | null {
