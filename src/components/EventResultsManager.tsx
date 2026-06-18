@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { MemberAvatar } from "@/components/MemberAvatar";
 import { useSeasonState } from "@/components/SeasonProvider";
 import { futureEventSlots } from "@/data/events";
@@ -37,6 +37,59 @@ function usedPlacements(
   }
 
   return used;
+}
+
+type EventTypeInputProps = {
+  resultId: string;
+  value: string;
+  onCommit: (resultId: string, value: string) => void;
+};
+
+function EventTypeInput({ resultId, value, onCommit }: EventTypeInputProps) {
+  const [draft, setDraft] = useState(value);
+  const saveTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (draft === value) return;
+
+    if (saveTimeoutRef.current !== null) {
+      window.clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = window.setTimeout(() => {
+      onCommit(resultId, draft);
+      saveTimeoutRef.current = null;
+    }, 350);
+
+    return () => {
+      if (saveTimeoutRef.current !== null) {
+        window.clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+    };
+  }, [draft, onCommit, resultId, value]);
+
+  function flushDraft() {
+    if (saveTimeoutRef.current !== null) {
+      window.clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+
+    if (draft !== value) {
+      onCommit(resultId, draft);
+    }
+  }
+
+  return (
+    <input
+      type="text"
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={flushDraft}
+      placeholder="Type"
+      className="mt-2 block w-full rounded-lg border border-emerald-800/70 bg-[#030806] px-3 py-2 text-sm normal-case tracking-normal text-stone-50"
+    />
+  );
 }
 
 export function EventResultsManager() {
@@ -232,18 +285,17 @@ export function EventResultsManager() {
                     </label>
                     <label className="text-xs font-semibold uppercase tracking-widest text-emerald-300/70">
                       Type
-                      <input
-                        type="text"
+                      <EventTypeInput
+                        key={result.id}
+                        resultId={result.id}
                         value={result.eventType}
-                        onChange={(event) =>
+                        onCommit={(resultId, value) =>
                           updateResultField(
-                            result.id,
+                            resultId,
                             "eventType",
-                            event.target.value,
+                            value,
                           )
                         }
-                        placeholder="Type"
-                        className="mt-2 block w-full rounded-lg border border-emerald-800/70 bg-[#030806] px-3 py-2 text-sm normal-case tracking-normal text-stone-50"
                       />
                     </label>
                   </div>
