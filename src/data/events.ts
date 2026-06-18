@@ -60,10 +60,23 @@ export const events: EventSnapshot[] = [
       { memberId: "nigel", points: 30 },
     ],
   },
+  {
+    id: "jun-2026-result",
+    name: "June Event",
+    eventType: "",
+    date: "2026-06-01",
+    standings: [
+      { memberId: "jack", points: 230 },
+      { memberId: "sergio", points: 200 },
+      { memberId: "shadi", points: 150 },
+      { memberId: "sam", points: 90 },
+      { memberId: "aaron", points: 80 },
+      { memberId: "nigel", points: 70 },
+    ],
+  },
 ];
 
 export const futureEventSlots: FutureEventSlot[] = [
-  { id: "jun-2026", label: "June 2026", month: 6, year: 2026 },
   { id: "jul-2026", label: "July 2026", month: 7, year: 2026 },
   { id: "aug-2026", label: "August 2026", month: 8, year: 2026 },
   { id: "sep-2026", label: "September 2026", month: 9, year: 2026 },

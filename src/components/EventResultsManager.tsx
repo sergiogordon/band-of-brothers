@@ -162,7 +162,7 @@ export function EventResultsManager() {
                 Future Event Placements
               </h1>
               <p className="mt-2 max-w-2xl text-stone-400">
-                Add June and every month after it. Draft changes sync across
+                Add July and every month after it. Draft changes sync across
                 devices, then Add this event publishes the final scores.
                 {isSyncing ? " Syncing…" : ""}
                 {syncError ? ` ${syncError}` : ""}
@@ -198,10 +198,10 @@ export function EventResultsManager() {
           {results.length === 0 ? (
             <div className="rounded-2xl border border-emerald-900/45 bg-[#07100d]/75 p-6 shadow-inner shadow-stone-950/70">
               <h2 className="text-xl font-semibold text-stone-50">
-                Start with June
+                Start with {futureEventSlots[0].label}
               </h2>
               <p className="mt-2 text-sm text-stone-400">
-                Add the June event, enter each placement, then keep adding the
+                Add the next event, enter each placement, then keep adding the
                 next month as the season rolls forward.
               </p>
               <button
@@ -209,7 +209,7 @@ export function EventResultsManager() {
                 onClick={() => void addResult(futureEventSlots[0].id)}
                 className="mt-5 rounded-lg bg-emerald-400 px-4 py-2 text-sm font-medium text-emerald-950 hover:bg-emerald-300"
               >
-                Add June 2026
+                Add {futureEventSlots[0].label}
               </button>
             </div>
           ) : (
