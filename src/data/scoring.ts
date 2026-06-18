@@ -15,3 +15,9 @@ export const PLACEMENTS: Placement[] = [1, 2, 3, 4, 5, 6];
 export function pointsForPlacement(placement: Placement): number {
   return PLACEMENT_POINTS[placement];
 }
+
+export function placementLabel(placement: Placement): string {
+  const suffix =
+    placement === 1 ? "st" : placement === 2 ? "nd" : placement === 3 ? "rd" : "th";
+  return `${placement}${suffix} (+${PLACEMENT_POINTS[placement]})`;
+}

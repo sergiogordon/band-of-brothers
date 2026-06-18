@@ -6,7 +6,7 @@ import { MemberAvatar } from "@/components/MemberAvatar";
 import { useSeasonState } from "@/components/SeasonProvider";
 import { futureEventSlots } from "@/data/events";
 import { memberById, members } from "@/data/members";
-import { PLACEMENT_POINTS, PLACEMENTS } from "@/data/scoring";
+import { PLACEMENTS, placementLabel } from "@/data/scoring";
 import { rankMembers } from "@/lib/points";
 import {
   defaultEventDate,
@@ -17,12 +17,6 @@ import {
   placementsRecordToFilled,
 } from "@/lib/season-results";
 import type { Placement, StoredEventResult } from "@/lib/types";
-
-function placementLabel(placement: Placement): string {
-  const suffix =
-    placement === 1 ? "st" : placement === 2 ? "nd" : placement === 3 ? "rd" : "th";
-  return `${placement}${suffix} (+${PLACEMENT_POINTS[placement]})`;
-}
 
 function usedPlacements(
   result: StoredEventResult,
@@ -172,6 +166,9 @@ export function EventResultsManager() {
                 devices, then Add this event publishes the final scores.
                 {isSyncing ? " Syncing…" : ""}
                 {syncError ? ` ${syncError}` : ""}
+              </p>
+              <p className="mt-3 text-xs font-semibold uppercase tracking-widest text-emerald-300/75">
+                Scoring: {PLACEMENTS.map(placementLabel).join(" · ")}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex">

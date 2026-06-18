@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { members, memberById } from "@/data/members";
 import { futureEventSlots } from "@/data/events";
-import { PLACEMENT_POINTS, PLACEMENTS } from "@/data/scoring";
+import { PLACEMENTS, placementLabel } from "@/data/scoring";
 import { MemberAvatar } from "@/components/MemberAvatar";
 import { useSeasonState } from "@/components/SeasonProvider";
 import {
@@ -53,12 +53,6 @@ function usedPlacements(
     if (p !== "") used.add(p);
   }
   return used;
-}
-
-function placementLabel(p: Placement): string {
-  const suffix =
-    p === 1 ? "st" : p === 2 ? "nd" : p === 3 ? "rd" : "th";
-  return `${p}${suffix} (+${PLACEMENT_POINTS[p]})`;
 }
 
 export function Simulator() {
@@ -218,9 +212,7 @@ export function Simulator() {
       </div>
 
       <div className="mb-4 rounded-lg border border-emerald-900/45 bg-emerald-950/20 px-4 py-3 text-xs text-stone-400">
-        Scoring: 1st {PLACEMENT_POINTS[1]} · 2nd {PLACEMENT_POINTS[2]} · 3rd{" "}
-        {PLACEMENT_POINTS[3]} · 4th {PLACEMENT_POINTS[4]} · 5th{" "}
-        {PLACEMENT_POINTS[5]} · 6th {PLACEMENT_POINTS[6]}
+        Scoring: {PLACEMENTS.map(placementLabel).join(" · ")}
       </div>
 
       <div className="space-y-6">
