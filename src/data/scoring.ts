@@ -4,9 +4,9 @@ import type { Placement } from "@/lib/types";
 export const PLACEMENT_POINTS: Record<Placement, number> = {
   1: 60,
   2: 40,
-  3: 20,
-  4: 10,
-  5: 5,
+  3: 30,
+  4: 20,
+  5: 10,
   6: 0,
 };
 

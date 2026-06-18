@@ -1,5 +1,6 @@
 import { events as seedEvents } from "@/data/events";
 import { members } from "@/data/members";
+import { PLACEMENTS } from "@/data/scoring";
 import {
   applyPlacements,
   getLatestEvent,
@@ -12,7 +13,12 @@ import {
   placementsRecordToFilled,
   sortStoredResults,
 } from "@/lib/season-results";
-import type { EventSnapshot, SeasonState, StandingEntry } from "@/lib/types";
+import type {
+  EventPlacement,
+  EventSnapshot,
+  SeasonState,
+  StandingEntry,
+} from "@/lib/types";
 
 function isValidEventType(value: unknown): value is string {
   return typeof value === "string";
@@ -49,6 +55,45 @@ export function normalizeEventSnapshot(raw: Partial<EventSnapshot>): EventSnapsh
   };
 }
 
+function rebuildEventStandings(events: EventSnapshot[]): EventSnapshot[] {
+  const sortedEvents = getSortedEvents(events);
+  let previousRawPoints = Object.fromEntries(
+    members.map((member) => [member.id, 0]),
+  );
+  let correctedPoints = Object.fromEntries(
+    members.map((member) => [member.id, 0]),
+  );
+
+  return sortedEvents.map((event) => {
+    const rawPoints = standingsToMap(event.standings);
+    const placements: EventPlacement[] = members
+      .map((member) => ({
+        memberId: member.id,
+        pointsGained: rawPoints[member.id] - previousRawPoints[member.id],
+      }))
+      .sort(
+        (a, b) =>
+          b.pointsGained - a.pointsGained ||
+          a.memberId.localeCompare(b.memberId),
+      )
+      .map((entry, index) => ({
+        memberId: entry.memberId,
+        placement: PLACEMENTS[index],
+      }));
+
+    correctedPoints = applyPlacements(correctedPoints, placements);
+    previousRawPoints = rawPoints;
+
+    return {
+      ...event,
+      standings: members.map((member) => ({
+        memberId: member.id,
+        points: correctedPoints[member.id],
+      })),
+    };
+  });
+}
+
 export function normalizeSeasonState(raw: unknown): SeasonState {
   if (!raw || typeof raw !== "object") {
     return { events: seedEvents, drafts: [] };
@@ -68,7 +113,7 @@ export function normalizeSeasonState(raw: unknown): SeasonState {
     : [];
 
   return {
-    events: events.length > 0 ? events : seedEvents,
+    events: rebuildEventStandings(events.length > 0 ? events : seedEvents),
     drafts,
   };
 }
