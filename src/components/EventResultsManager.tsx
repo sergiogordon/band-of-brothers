@@ -97,6 +97,7 @@ export function EventResultsManager() {
     addResult,
     removeResult,
     resetResults,
+    publishResult,
     state,
     updateResult,
     isSyncing,
@@ -114,6 +115,7 @@ export function EventResultsManager() {
   );
   const ranked = useMemo(() => rankMembers(getLivePointsMap()), [getLivePointsMap]);
   const completedCount = results.filter(isCompletedResult).length;
+  const nextPublishableResultId = results[0]?.id ?? null;
 
   function updateResultField<K extends keyof StoredEventResult>(
     resultId: string,
@@ -166,8 +168,8 @@ export function EventResultsManager() {
                 Future Event Placements
               </h1>
               <p className="mt-2 max-w-2xl text-stone-400">
-                Add June and every month after it. Changes sync across devices
-                and update the main leaderboard when complete.
+                Add June and every month after it. Draft changes sync across
+                devices, then Add this event publishes the final scores.
                 {isSyncing ? " Syncing…" : ""}
                 {syncError ? ` ${syncError}` : ""}
               </p>
@@ -218,6 +220,8 @@ export function EventResultsManager() {
               const status = getPlacementStatus(result.placements);
               const assignedCount = placementsRecordToFilled(result.placements).length;
               const slot = getFutureSlot(result.slotId);
+              const isNextPublishable = result.id === nextPublishableResultId;
+              const canPublish = status.complete && !status.duplicate && isNextPublishable;
 
               return (
                 <article
@@ -354,19 +358,31 @@ export function EventResultsManager() {
                     <p className="text-sm text-stone-400">
                       {status.duplicate
                         ? "Fix duplicate placements before this month can count."
+                        : status.complete && !isNextPublishable
+                          ? "Add earlier events before this one can update scores."
                         : status.complete
-                          ? "Complete. This month counts on the main leaderboard."
+                          ? "Ready to add this event and update the scores."
                           : `${assignedCount}/6 placements entered. Preview updates as you go.`}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateResultField(result.id, "placements", emptyPlacementMap())
-                      }
-                      className="self-start rounded-lg border border-emerald-900/70 px-3 py-2 text-sm text-stone-300 hover:bg-emerald-950/60 sm:self-auto"
-                    >
-                      Clear placements
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateResultField(result.id, "placements", emptyPlacementMap())
+                        }
+                        className="rounded-lg border border-emerald-900/70 px-3 py-2 text-sm text-stone-300 hover:bg-emerald-950/60"
+                      >
+                        Clear placements
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void publishResult(result.id)}
+                        disabled={!canPublish || isSyncing}
+                        className="rounded-lg bg-emerald-400 px-3 py-2 text-sm font-medium text-emerald-950 hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Add this event
+                      </button>
+                    </div>
                   </div>
                 </article>
               );
@@ -382,7 +398,7 @@ export function EventResultsManager() {
                   Live Leaderboard
                 </h2>
                 <p className="text-xs text-stone-500">
-                  {completedCount} completed saved month
+                  {completedCount} completed draft
                   {completedCount === 1 ? "" : "s"}
                 </p>
               </div>

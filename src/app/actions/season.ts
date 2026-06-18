@@ -8,6 +8,7 @@ import {
   normalizeSeasonState,
 } from "@/lib/season-state";
 import {
+  getPlacementStatus,
   isCompletedResult,
   normalizeStoredEventResult,
   sortStoredResults,
@@ -48,9 +49,38 @@ export async function publishEvent(result: StoredEventResult): Promise<SeasonSta
   }
 
   const current = await getSeasonState();
+  const normalizedDrafts = sortStoredResults(
+    current.drafts
+      .map((draft) => normalizeStoredEventResult(draft))
+      .filter((draft): draft is StoredEventResult => draft !== null),
+  );
+
+  if (!normalizedDrafts.some((draft) => draft.id === normalized.id)) {
+    throw new Error("Event draft was not found. Refresh and try again.");
+  }
+
+  const draftsForPublish = sortStoredResults(
+    normalizedDrafts.map((draft) =>
+      draft.id === normalized.id ? normalized : draft,
+    ),
+  );
+  const targetDraft = draftsForPublish.find((draft) => draft.id === normalized.id);
+  const firstUnpublishedDraft = normalizedDrafts.find(
+    (draft) => !current.events.some((event) => event.id === draft.id),
+  );
+
+  if (!targetDraft || firstUnpublishedDraft?.id !== normalized.id) {
+    throw new Error("Publish earlier events before adding this event.");
+  }
+
+  const status = getPlacementStatus(targetDraft.placements);
+  if (!status.complete || status.duplicate) {
+    throw new Error("Event must have valid, complete placements before publishing.");
+  }
+
   const draftSnapshots = buildCompletedDraftSnapshots({
     ...current,
-    drafts: [normalized],
+    drafts: [targetDraft],
   });
 
   const snapshot = draftSnapshots[draftSnapshots.length - 1];
@@ -66,7 +96,7 @@ export async function publishEvent(result: StoredEventResult): Promise<SeasonSta
 
   const saved = await saveSeasonState({
     events: getSortedEvents(events),
-    drafts: current.drafts.filter((draft) => draft.id !== normalized.id),
+    drafts: draftsForPublish.filter((draft) => draft.id !== normalized.id),
   });
 
   revalidateSeasonPages();

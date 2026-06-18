@@ -12,6 +12,7 @@ import {
 } from "react";
 import {
   fetchSeasonState,
+  publishEvent as publishEventAction,
   resetDrafts as resetDraftsAction,
   saveDrafts as saveDraftsAction,
 } from "@/app/actions/season";
@@ -33,6 +34,7 @@ type SeasonContextValue = {
   addResult: (slotId: string) => Promise<void>;
   removeResult: (resultId: string) => Promise<void>;
   resetResults: () => Promise<void>;
+  publishResult: (resultId: string) => Promise<void>;
   updateResult: (
     resultId: string,
     updater: (result: StoredEventResult) => StoredEventResult,
@@ -183,6 +185,26 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
     }
   }, [state]);
 
+  const publishResult = useCallback(
+    async (resultId: string) => {
+      const result = state.drafts.find((draft) => draft.id === resultId);
+      if (!result) return;
+
+      setIsSyncing(true);
+      setSyncError(null);
+
+      try {
+        const saved = await publishEventAction(result);
+        setState(saved);
+      } catch (error) {
+        setSyncError(error instanceof Error ? error.message : "Failed to add event.");
+      } finally {
+        setIsSyncing(false);
+      }
+    },
+    [state],
+  );
+
   const updateResult = useCallback(
     async (
       resultId: string,
@@ -212,6 +234,7 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
       addResult,
       removeResult,
       resetResults,
+      publishResult,
       updateResult,
       getLatestPointsMap: () => getLatestPointsMapFromState(state),
       getLivePointsMap: () => getLivePointsMapFromState(state),
@@ -223,6 +246,7 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
       refresh,
       removeResult,
       resetResults,
+      publishResult,
       state,
       syncError,
       updateResult,
