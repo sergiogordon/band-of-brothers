@@ -31,8 +31,6 @@ type SeasonContextValue = {
   mergedEvents: EventSnapshot[];
   isSyncing: boolean;
   syncError: string | null;
-  adminKey: string;
-  setAdminKey: (adminKey: string) => void;
   refresh: () => Promise<void>;
   addResult: (slotId: string) => Promise<void>;
   removeResult: (resultId: string) => Promise<void>;
@@ -47,7 +45,6 @@ type SeasonContextValue = {
 };
 
 const SeasonContext = createContext<SeasonContextValue | null>(null);
-const ADMIN_KEY_STORAGE_KEY = "band-of-brothers-results-admin-key";
 
 function getChangedPlacements(
   previous: StoredEventResult,
@@ -90,46 +87,16 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
   const [state, setState] = useState(initialState);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [adminKey, setAdminKeyState] = useState(() => {
-    if (typeof window === "undefined") return "";
-
-    try {
-      return window.localStorage.getItem(ADMIN_KEY_STORAGE_KEY) ?? "";
-    } catch {
-      return "";
-    }
-  });
 
   const mergedEvents = useMemo(() => mergeSeasonEvents(state), [state]);
 
-  const setAdminKey = useCallback((nextAdminKey: string) => {
-    setAdminKeyState(nextAdminKey);
-    try {
-      if (nextAdminKey) {
-        window.localStorage.setItem(ADMIN_KEY_STORAGE_KEY, nextAdminKey);
-      } else {
-        window.localStorage.removeItem(ADMIN_KEY_STORAGE_KEY);
-      }
-    } catch {
-      // Storage is a convenience only; the in-memory key still works.
-    }
-  }, []);
-
-  const requireAdminKey = useCallback(() => {
-    if (!adminKey.trim()) {
-      throw new Error("Enter the results admin key before saving changes.");
-    }
-
-    return adminKey;
-  }, [adminKey]);
-
   const runMutation = useCallback(
-    async (operation: (key: string) => Promise<SeasonState>) => {
+    async (operation: () => Promise<SeasonState>) => {
       setIsSyncing(true);
       setSyncError(null);
 
       try {
-        const saved = await operation(requireAdminKey());
+        const saved = await operation();
         setState(saved);
         return saved;
       } catch (error) {
@@ -141,7 +108,7 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
         setIsSyncing(false);
       }
     },
-    [requireAdminKey],
+    [],
   );
 
   const refresh = useCallback(async () => {
@@ -171,7 +138,7 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
     async (slotId: string) => {
       if (state.drafts.some((result) => result.slotId === slotId)) return;
 
-      await runMutation((key) => createDraft(slotId, key));
+      await runMutation(() => createDraft(slotId));
     },
     [runMutation, state.drafts],
   );
@@ -185,7 +152,7 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
       }));
 
       try {
-        await runMutation((key) => removeDraft(resultId, key));
+        await runMutation(() => removeDraft(resultId));
       } catch {
         setState(previous);
       }
@@ -198,7 +165,7 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
     setState((current) => ({ ...current, drafts: [] }));
 
     try {
-      await runMutation((key) => resetDraftsAction(key));
+      await runMutation(() => resetDraftsAction());
     } catch {
       setState(previous);
     }
@@ -206,7 +173,7 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
 
   const publishResult = useCallback(
     async (resultId: string) => {
-      await runMutation((key) => publishEventAction(resultId, key));
+      await runMutation(() => publishEventAction(resultId));
     },
     [runMutation],
   );
@@ -230,25 +197,24 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
         const placementChanges = getChangedPlacements(previousResult, nextResult);
         const changedDetails = detailsChanged(previousResult, nextResult);
 
-        await runMutation(async (key) => {
+        await runMutation(async () => {
           let saved: SeasonState | null = null;
 
           if (changedDetails) {
-            saved = await saveDraftDetails(nextResult, key);
+            saved = await saveDraftDetails(nextResult);
           }
 
           if (
             placementChanges.length > 0 &&
             placementChanges.every((change) => change.placement === "")
           ) {
-            saved = await clearDraftResultPlacements(nextResult.id, key);
+            saved = await clearDraftResultPlacements(nextResult.id);
           } else {
             for (const change of placementChanges) {
               saved = await saveDraftPlacement(
                 nextResult.id,
                 change.memberId,
                 change.placement,
-                key,
               );
             }
           }
@@ -268,8 +234,6 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
       mergedEvents,
       isSyncing,
       syncError,
-      adminKey,
-      setAdminKey,
       refresh,
       addResult,
       removeResult,
@@ -281,14 +245,12 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
     }),
     [
       addResult,
-      adminKey,
       isSyncing,
       mergedEvents,
       publishResult,
       refresh,
       removeResult,
       resetResults,
-      setAdminKey,
       state,
       syncError,
       updateResult,

@@ -95,8 +95,6 @@ export function EventResultsManager() {
     updateResult,
     isSyncing,
     syncError,
-    adminKey,
-    setAdminKey,
     getLivePointsMap,
   } = useSeasonState();
   const results = state.drafts;
@@ -169,17 +167,7 @@ export function EventResultsManager() {
                 Scoring: {PLACEMENTS.map(placementLabel).join(" · ")}
               </p>
             </div>
-            <div className="grid gap-3 sm:min-w-72">
-              <label className="text-xs font-semibold uppercase tracking-widest text-emerald-300/70">
-                Admin key
-                <input
-                  type="password"
-                  value={adminKey}
-                  onChange={(event) => setAdminKey(event.target.value)}
-                  placeholder="Required to save"
-                  className="mt-2 block w-full rounded-lg border border-emerald-800/70 bg-[#030806] px-3 py-2 text-sm normal-case tracking-normal text-stone-50"
-                />
-              </label>
+            <div className="grid gap-3">
               <div className="grid grid-cols-2 gap-2 sm:flex">
               <button
                 type="button"

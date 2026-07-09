@@ -21,9 +21,8 @@ Season events and entered results are stored in Postgres so every device sees th
 
 1. In the [Vercel dashboard](https://vercel.com), open the project → **Storage** and add a Marketplace Postgres integration such as Neon.
 2. Vercel links `POSTGRES_URL` to the project automatically.
-3. Add `RESULTS_ADMIN_KEY` in Vercel and use the same key on `/events` when saving results.
-4. For local dev, copy the connection string and admin key into `.env.local` (see [`.env.example`](.env.example)).
-5. Seed the 2026 season (creates the relational tables and inserts the existing published events):
+3. For local dev, copy the connection string into `.env.local` (see [`.env.example`](.env.example)).
+4. Seed the 2026 season (creates the relational tables and inserts the existing published events):
 
 ```bash
 npm run seed:season
@@ -34,7 +33,7 @@ Safe to re-run — it upserts the seeded published events and placements.
 ### Update standings after an event
 
 1. Open [`/events`](http://localhost:3000/events) on any device.
-2. Enter the admin key, add the month, enter placements, and save — drafts sync to Postgres automatically.
+2. Add the month, enter placements, and save — drafts sync to Postgres automatically.
 3. Completed valid months update the homepage leaderboard, timeline, and race chart for everyone.
 
 No redeploy needed for new results.
