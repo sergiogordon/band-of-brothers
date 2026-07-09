@@ -24,3 +24,14 @@ CREATE TABLE IF NOT EXISTS event_placements (
   PRIMARY KEY (event_id, member_id),
   UNIQUE (event_id, placement)
 );
+
+CREATE TABLE IF NOT EXISTS season_adjustments (
+  id             TEXT PRIMARY KEY,
+  season_id      TEXT NOT NULL,
+  member_id      TEXT NOT NULL,
+  points         INTEGER NOT NULL,
+  reason         TEXT NOT NULL,
+  effective_date DATE NOT NULL,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);

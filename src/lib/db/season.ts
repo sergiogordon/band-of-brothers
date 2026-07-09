@@ -1,5 +1,6 @@
 import { sql } from "@vercel/postgres";
 import { events as seedEvents } from "@/data/events";
+import { seasonAdjustments } from "@/data/adjustments";
 import { members } from "@/data/members";
 import { applyPlacements, getSortedEvents } from "@/lib/points";
 import {
@@ -36,6 +37,15 @@ type DbPlacementRow = {
   event_id: string;
   member_id: string;
   placement: number;
+};
+
+type DbAdjustmentRow = {
+  id: string;
+  season_id: string;
+  member_id: string;
+  points: number;
+  reason: string;
+  effective_date: Date | string;
 };
 
 type EventInput = {
@@ -85,6 +95,22 @@ function standingsFromPlacements(
   return applyPlacements(basePoints, placements);
 }
 
+function applyAdjustments(
+  points: Record<string, number>,
+  eventDate: string,
+  adjustments: DbAdjustmentRow[],
+): Record<string, number> {
+  const next = { ...points };
+
+  for (const adjustment of adjustments) {
+    if (adjustment.effective_date.toString().slice(0, 10) > eventDate) continue;
+    if (!memberIds.has(adjustment.member_id)) continue;
+    next[adjustment.member_id] = (next[adjustment.member_id] ?? 0) + adjustment.points;
+  }
+
+  return next;
+}
+
 function rowsToPlacements(rows: DbPlacementRow[]): Record<string, Placement | ""> {
   const placements = emptyPlacementMap();
 
@@ -107,6 +133,7 @@ function placementRowsForEvent(
 function buildPublishedSnapshots(
   eventRows: DbEventRow[],
   placementRows: DbPlacementRow[],
+  adjustmentRows: DbAdjustmentRow[],
 ): EventSnapshot[] {
   let points = Object.fromEntries(members.map((member) => [member.id, 0]));
   const snapshots: EventSnapshot[] = [];
@@ -120,6 +147,7 @@ function buildPublishedSnapshots(
       .filter((placement) => memberIds.has(placement.memberId));
 
     points = standingsFromPlacements(points, placements);
+    points = applyAdjustments(points, formatDate(event.date), adjustmentRows);
     snapshots.push({
       id: event.id,
       name: event.name,
@@ -209,6 +237,19 @@ async function ensureSchema() {
   `);
 
   await sql.query(`
+    CREATE TABLE IF NOT EXISTS season_adjustments (
+      id             TEXT PRIMARY KEY,
+      season_id      TEXT NOT NULL,
+      member_id      TEXT NOT NULL,
+      points         INTEGER NOT NULL,
+      reason         TEXT NOT NULL,
+      effective_date DATE NOT NULL,
+      created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+
+  await sql.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS season_events_season_slot_unique
       ON season_events (season_id, slot_id)
       WHERE slot_id IS NOT NULL;
@@ -266,6 +307,33 @@ async function ensureSeasonStorage() {
   assertDatabaseConfigured();
   await ensureSchema();
   await seedPublishedEventsIfEmpty();
+  await seedSeasonAdjustments();
+}
+
+async function seedSeasonAdjustments() {
+  for (const adjustment of seasonAdjustments) {
+    await sql`
+      INSERT INTO season_adjustments (
+        id, season_id, member_id, points, reason, effective_date, updated_at
+      )
+      VALUES (
+        ${adjustment.id},
+        ${SEASON_ID},
+        ${adjustment.memberId},
+        ${adjustment.points},
+        ${adjustment.reason},
+        ${adjustment.effectiveDate},
+        now()
+      )
+      ON CONFLICT (id) DO UPDATE
+      SET
+        member_id = EXCLUDED.member_id,
+        points = EXCLUDED.points,
+        reason = EXCLUDED.reason,
+        effective_date = EXCLUDED.effective_date,
+        updated_at = now()
+    `;
+  }
 }
 
 async function listEventRows(): Promise<DbEventRow[]> {
@@ -291,16 +359,46 @@ async function listPlacementRows(): Promise<DbPlacementRow[]> {
   return result.rows;
 }
 
+async function listAdjustmentRows(): Promise<DbAdjustmentRow[]> {
+  const result = await sql<DbAdjustmentRow>`
+    SELECT id, season_id, member_id, points, reason, effective_date
+    FROM season_adjustments
+    WHERE season_id = ${SEASON_ID}
+    ORDER BY effective_date ASC, id ASC
+  `;
+
+  return result.rows;
+}
+
+function applyFallbackAdjustments(events: EventSnapshot[]): EventSnapshot[] {
+  return events.map((event) => {
+    const standings = event.standings.map((standing) => {
+      const bonus = seasonAdjustments
+        .filter(
+          (adjustment) =>
+            adjustment.memberId === standing.memberId &&
+            adjustment.effectiveDate <= event.date,
+        )
+        .reduce((total, adjustment) => total + adjustment.points, 0);
+
+      return { ...standing, points: standing.points + bonus };
+    });
+
+    return { ...event, standings };
+  });
+}
+
 export async function getSeasonState(): Promise<SeasonState> {
   if (!hasDatabase()) {
-    return emptySeasonState(seedEvents);
+    return emptySeasonState(applyFallbackAdjustments(seedEvents));
   }
 
   try {
     await ensureSeasonStorage();
-    const [eventRows, placementRows] = await Promise.all([
+    const [eventRows, placementRows, adjustmentRows] = await Promise.all([
       listEventRows(),
       listPlacementRows(),
+      listAdjustmentRows(),
     ]);
 
     if (eventRows.length === 0) {
@@ -311,6 +409,7 @@ export async function getSeasonState(): Promise<SeasonState> {
       events: buildPublishedSnapshots(
         eventRows.filter((event) => event.status === "published"),
         placementRows,
+        adjustmentRows,
       ),
       drafts: buildDrafts(
         eventRows.filter((event) => event.status === "draft"),
@@ -318,7 +417,7 @@ export async function getSeasonState(): Promise<SeasonState> {
       ),
     };
   } catch {
-    return emptySeasonState(seedEvents);
+    return emptySeasonState(applyFallbackAdjustments(seedEvents));
   }
 }
 
