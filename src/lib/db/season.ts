@@ -103,7 +103,7 @@ function applyAdjustments(
   const next = { ...points };
 
   for (const adjustment of adjustments) {
-    if (adjustment.effective_date.toString().slice(0, 10) > eventDate) continue;
+    if (formatDate(adjustment.effective_date) > eventDate) continue;
     if (!memberIds.has(adjustment.member_id)) continue;
     next[adjustment.member_id] = (next[adjustment.member_id] ?? 0) + adjustment.points;
   }
