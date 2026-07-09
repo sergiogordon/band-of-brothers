@@ -58,6 +58,8 @@ const pointToPlacement = new Map<number, Placement>([
   [0, 6],
 ]);
 
+let schemaReady = false;
+
 export function hasDatabase(): boolean {
   return Boolean(process.env.POSTGRES_URL);
 }
@@ -188,6 +190,80 @@ export function seedPlacementsForEvent(eventId: string): EventPlacement[] {
   return inferSeedPlacements(seedEvents).get(eventId) ?? [];
 }
 
+async function ensureSchema() {
+  if (schemaReady) return;
+
+  await sql.query(`
+    CREATE TABLE IF NOT EXISTS season_events (
+      id         TEXT PRIMARY KEY,
+      season_id  TEXT NOT NULL,
+      slot_id    TEXT,
+      name       TEXT NOT NULL,
+      event_type TEXT NOT NULL DEFAULT '',
+      venue      TEXT,
+      date       DATE NOT NULL,
+      status     TEXT NOT NULL CHECK (status IN ('draft', 'published')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS season_events_season_slot_unique
+      ON season_events (season_id, slot_id)
+      WHERE slot_id IS NOT NULL;
+
+    CREATE TABLE IF NOT EXISTS event_placements (
+      event_id   TEXT NOT NULL REFERENCES season_events(id) ON DELETE CASCADE,
+      member_id  TEXT NOT NULL,
+      placement  INTEGER NOT NULL CHECK (placement BETWEEN 1 AND 6),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (event_id, member_id),
+      UNIQUE (event_id, placement)
+    );
+  `);
+
+  schemaReady = true;
+}
+
+async function seedPublishedEventsIfEmpty() {
+  const existing = await sql<{ count: string | number }>`
+    SELECT COUNT(*) AS count
+    FROM season_events
+    WHERE season_id = ${SEASON_ID}
+  `;
+
+  if (Number(existing.rows[0]?.count ?? 0) > 0) return;
+
+  const placementsByEvent = inferSeedPlacements(seedEvents);
+
+  for (const event of getSortedEvents(seedEvents)) {
+    await upsertEvent({
+      id: event.id,
+      slotId: null,
+      name: event.name,
+      eventType: event.eventType,
+      venue: event.venue,
+      date: event.date,
+      status: "published",
+    });
+
+    for (const placement of placementsByEvent.get(event.id) ?? []) {
+      await sql`
+        INSERT INTO event_placements (event_id, member_id, placement, updated_at)
+        VALUES (${event.id}, ${placement.memberId}, ${placement.placement}, now())
+        ON CONFLICT (event_id, member_id) DO UPDATE
+        SET placement = EXCLUDED.placement, updated_at = now()
+      `;
+    }
+  }
+}
+
+async function ensureSeasonStorage() {
+  assertDatabaseConfigured();
+  await ensureSchema();
+  await seedPublishedEventsIfEmpty();
+}
+
 async function listEventRows(): Promise<DbEventRow[]> {
   const result = await sql<DbEventRow>`
     SELECT id, season_id, slot_id, name, event_type, venue, date, status
@@ -217,6 +293,7 @@ export async function getSeasonState(): Promise<SeasonState> {
   }
 
   try {
+    await ensureSeasonStorage();
     const [eventRows, placementRows] = await Promise.all([
       listEventRows(),
       listPlacementRows(),
@@ -261,7 +338,7 @@ async function assertDraftEvent(eventId: string): Promise<DbEventRow> {
 }
 
 export async function createDraftEvent(slotId: string): Promise<SeasonState> {
-  assertDatabaseConfigured();
+  await ensureSeasonStorage();
 
   const normalized = createStoredEventResult(slotId);
   const existing = await sql<{ id: string }>`
@@ -291,7 +368,7 @@ export async function createDraftEvent(slotId: string): Promise<SeasonState> {
 export async function updateDraftEventDetails(
   result: StoredEventResult,
 ): Promise<SeasonState> {
-  assertDatabaseConfigured();
+  await ensureSeasonStorage();
 
   const normalized = normalizeStoredEventResult(result);
   if (!normalized) {
@@ -317,7 +394,7 @@ export async function updateDraftPlacement(
   memberId: string,
   placement: Placement | "",
 ): Promise<SeasonState> {
-  assertDatabaseConfigured();
+  await ensureSeasonStorage();
   await assertDraftEvent(eventId);
 
   if (!memberIds.has(memberId)) {
@@ -355,7 +432,7 @@ export async function updateDraftPlacement(
 }
 
 export async function clearDraftPlacements(eventId: string): Promise<SeasonState> {
-  assertDatabaseConfigured();
+  await ensureSeasonStorage();
   await assertDraftEvent(eventId);
 
   await sql`
@@ -367,7 +444,7 @@ export async function clearDraftPlacements(eventId: string): Promise<SeasonState
 }
 
 export async function deleteDraftEvent(eventId: string): Promise<SeasonState> {
-  assertDatabaseConfigured();
+  await ensureSeasonStorage();
   await assertDraftEvent(eventId);
 
   await sql`
@@ -379,7 +456,7 @@ export async function deleteDraftEvent(eventId: string): Promise<SeasonState> {
 }
 
 export async function deleteAllDraftEvents(): Promise<SeasonState> {
-  assertDatabaseConfigured();
+  await ensureSeasonStorage();
 
   await sql`
     DELETE FROM season_events
@@ -390,7 +467,7 @@ export async function deleteAllDraftEvents(): Promise<SeasonState> {
 }
 
 export async function publishDraftEvent(eventId: string): Promise<SeasonState> {
-  assertDatabaseConfigured();
+  await ensureSeasonStorage();
   const current = await getSeasonState();
   const draft = current.drafts.find((item) => item.id === eventId);
 

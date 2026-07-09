@@ -198,6 +198,11 @@ export function EventResultsManager() {
               <h2 className="text-xl font-semibold text-stone-50">
                 Start with {futureEventSlots[0].label}
               </h2>
+              {syncError ? (
+                <p className="mt-2 rounded-lg border border-red-900/50 bg-red-950/30 px-3 py-2 text-sm text-red-200">
+                  {syncError}
+                </p>
+              ) : null}
               <p className="mt-2 text-sm text-stone-400">
                 Add the next event, enter each placement, then keep adding the
                 next month as the season rolls forward.
