@@ -1,6 +1,9 @@
 import { sql } from "@vercel/postgres";
 import { events as seedEvents } from "@/data/events";
-import { seasonAdjustments } from "@/data/adjustments";
+import {
+  retiredSeasonAdjustmentIds,
+  seasonAdjustments,
+} from "@/data/adjustments";
 import { members } from "@/data/members";
 import { applyPlacements, getSortedEvents } from "@/lib/points";
 import {
@@ -316,6 +319,13 @@ async function ensureSeasonStorage() {
 }
 
 async function seedSeasonAdjustments() {
+  for (const adjustmentId of retiredSeasonAdjustmentIds) {
+    await sql`
+      DELETE FROM season_adjustments
+      WHERE season_id = ${SEASON_ID} AND id = ${adjustmentId}
+    `;
+  }
+
   for (const adjustment of seasonAdjustments) {
     await sql`
       INSERT INTO season_adjustments (

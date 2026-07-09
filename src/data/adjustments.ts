@@ -6,6 +6,10 @@ export type SeasonAdjustment = {
   effectiveDate: string;
 };
 
+export const retiredSeasonAdjustmentIds = [
+  "nigel-july-total-correction-2026",
+];
+
 export const seasonAdjustments: SeasonAdjustment[] = [
   {
     id: "nigel-bowling-correction-2026",
