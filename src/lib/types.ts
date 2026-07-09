@@ -19,6 +19,7 @@ export type EventSnapshot = {
   eventType: EventType;
   venue?: string;
   date: string;
+  placements?: EventPlacement[];
   standings: StandingEntry[];
 };
 

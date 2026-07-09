@@ -154,6 +154,7 @@ function buildPublishedSnapshots(
       eventType: event.event_type,
       venue: event.venue ?? undefined,
       date: formatDate(event.date),
+      placements,
       standings: members.map((member) => ({
         memberId: member.id,
         points: points[member.id] ?? 0,
@@ -388,9 +389,18 @@ function applyFallbackAdjustments(events: EventSnapshot[]): EventSnapshot[] {
   });
 }
 
+function withSeedPlacements(events: EventSnapshot[]): EventSnapshot[] {
+  const placementsByEvent = inferSeedPlacements(seedEvents);
+
+  return events.map((event) => ({
+    ...event,
+    placements: event.placements ?? placementsByEvent.get(event.id),
+  }));
+}
+
 export async function getSeasonState(): Promise<SeasonState> {
   if (!hasDatabase()) {
-    return emptySeasonState(applyFallbackAdjustments(seedEvents));
+    return emptySeasonState(applyFallbackAdjustments(withSeedPlacements(seedEvents)));
   }
 
   try {
@@ -402,7 +412,7 @@ export async function getSeasonState(): Promise<SeasonState> {
     ]);
 
     if (eventRows.length === 0) {
-      return emptySeasonState(seedEvents);
+      return emptySeasonState(withSeedPlacements(seedEvents));
     }
 
     return {
@@ -417,7 +427,7 @@ export async function getSeasonState(): Promise<SeasonState> {
       ),
     };
   } catch {
-    return emptySeasonState(applyFallbackAdjustments(seedEvents));
+    return emptySeasonState(applyFallbackAdjustments(withSeedPlacements(seedEvents)));
   }
 }
 
@@ -435,6 +445,25 @@ async function assertDraftEvent(eventId: string): Promise<DbEventRow> {
 
   if (event.status !== "draft") {
     throw new Error("Published events cannot be edited from this screen.");
+  }
+
+  return event;
+}
+
+async function assertPublishedEvent(eventId: string): Promise<DbEventRow> {
+  const result = await sql<DbEventRow>`
+    SELECT id, season_id, slot_id, name, event_type, venue, date, status
+    FROM season_events
+    WHERE season_id = ${SEASON_ID} AND id = ${eventId}
+  `;
+  const event = result.rows[0];
+
+  if (!event) {
+    throw new Error("Event was not found. Refresh and try again.");
+  }
+
+  if (event.status !== "published") {
+    throw new Error("Only published events can be edited here.");
   }
 
   return event;
@@ -542,6 +571,45 @@ export async function clearDraftPlacements(eventId: string): Promise<SeasonState
     DELETE FROM event_placements
     WHERE event_id = ${eventId}
   `;
+
+  return getSeasonState();
+}
+
+export async function updatePublishedPlacements(
+  eventId: string,
+  placements: EventPlacement[],
+): Promise<SeasonState> {
+  await ensureSeasonStorage();
+  await assertPublishedEvent(eventId);
+
+  const usedMembers = new Set<string>();
+  const usedPlacements = new Set<Placement>();
+
+  for (const placement of placements) {
+    if (!memberIds.has(placement.memberId)) {
+      throw new Error("Unknown member.");
+    }
+
+    usedMembers.add(placement.memberId);
+    usedPlacements.add(placement.placement);
+  }
+
+  if (
+    placements.length !== members.length ||
+    usedMembers.size !== members.length ||
+    usedPlacements.size !== members.length
+  ) {
+    throw new Error("Event must have one unique placement for every member.");
+  }
+
+  await sql`DELETE FROM event_placements WHERE event_id = ${eventId}`;
+
+  for (const placement of placements) {
+    await sql`
+      INSERT INTO event_placements (event_id, member_id, placement, updated_at)
+      VALUES (${eventId}, ${placement.memberId}, ${placement.placement}, now())
+    `;
+  }
 
   return getSeasonState();
 }

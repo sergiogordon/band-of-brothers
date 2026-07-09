@@ -13,6 +13,7 @@ import {
   sortStoredResults,
 } from "@/lib/season-results";
 import type { EventSnapshot, SeasonState, StandingEntry } from "@/lib/types";
+import type { EventPlacement } from "@/lib/types";
 
 function isValidEventType(value: unknown): value is string {
   return typeof value === "string";
@@ -49,12 +50,39 @@ export function normalizeEventSnapshot(raw: Partial<EventSnapshot>): EventSnapsh
     standings.push({ memberId: member.id, points: entry.points });
   }
 
+  const placements: EventPlacement[] | undefined = Array.isArray(raw.placements)
+    ? raw.placements
+        .map((placement) => {
+          if (
+            !placement ||
+            typeof placement !== "object" ||
+            typeof placement.memberId !== "string" ||
+            !members.some((member) => member.id === placement.memberId) ||
+            (placement.placement !== 1 &&
+              placement.placement !== 2 &&
+              placement.placement !== 3 &&
+              placement.placement !== 4 &&
+              placement.placement !== 5 &&
+              placement.placement !== 6)
+          ) {
+            return null;
+          }
+
+          return {
+            memberId: placement.memberId,
+            placement: placement.placement,
+          };
+        })
+        .filter((placement): placement is EventPlacement => placement !== null)
+    : undefined;
+
   return {
     id: raw.id,
     name: raw.name.trim(),
     eventType: raw.eventType,
     venue: typeof raw.venue === "string" ? raw.venue : undefined,
     date: raw.date,
+    placements,
     standings,
   };
 }
@@ -94,12 +122,14 @@ export function buildCompletedDraftSnapshots(state: SeasonState): EventSnapshot[
   for (const result of sortStoredResults(state.drafts)) {
     if (!isCompletedResult(result)) continue;
 
-    points = applyPlacements(points, placementsRecordToFilled(result.placements));
+    const placements = placementsRecordToFilled(result.placements);
+    points = applyPlacements(points, placements);
     snapshots.push({
       id: result.id,
       name: result.name,
       eventType: result.eventType,
       date: result.date,
+      placements,
       standings: Object.entries(points).map(([memberId, memberPoints]) => ({
         memberId,
         points: memberPoints,

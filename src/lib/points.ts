@@ -1,6 +1,6 @@
 import { events as seedEvents } from "@/data/events";
 import { members } from "@/data/members";
-import { pointsForPlacement } from "@/data/scoring";
+import { PLACEMENT_POINTS, pointsForPlacement } from "@/data/scoring";
 import type {
   EventPlacement,
   EventSnapshot,
@@ -54,6 +54,34 @@ export function rankMembers(pointsMap: Record<string, number>): RankedMember[] {
 export function getLeaderAtEvent(event: EventSnapshot): StandingEntry {
   const sorted = [...event.standings].sort((a, b) => b.points - a.points);
   return sorted[0];
+}
+
+export function inferEventPlacements(
+  previousStandings: StandingEntry[] | null,
+  event: EventSnapshot,
+): EventPlacement[] | null {
+  if (event.placements?.length) return event.placements;
+
+  const previousPoints = standingsToMap(previousStandings ?? []);
+  const pointToPlacement = new Map<number, Placement>(
+    Object.entries(PLACEMENT_POINTS).map(([placement, points]) => [
+      points,
+      Number(placement) as Placement,
+    ]),
+  );
+  const placements: EventPlacement[] = [];
+
+  for (const member of members) {
+    const nextPoints =
+      event.standings.find((standing) => standing.memberId === member.id)?.points ?? 0;
+    const delta = nextPoints - (previousPoints[member.id] ?? 0);
+    const placement = pointToPlacement.get(delta);
+
+    if (!placement) return null;
+    placements.push({ memberId: member.id, placement });
+  }
+
+  return placements;
 }
 
 export function applyPlacements(

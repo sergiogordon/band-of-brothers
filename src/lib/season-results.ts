@@ -131,12 +131,14 @@ export function buildCompletedEventSnapshots(
   for (const result of sortStoredResults(storedResults)) {
     if (!isCompletedResult(result)) continue;
 
-    points = applyPlacements(points, placementsRecordToFilled(result.placements));
+    const placements = placementsRecordToFilled(result.placements);
+    points = applyPlacements(points, placements);
     snapshots.push({
       id: result.id,
       name: result.name,
       eventType: result.eventType,
       date: result.date,
+      placements,
       standings: Object.entries(points).map(([memberId, memberPoints]) => ({
         memberId,
         points: memberPoints,

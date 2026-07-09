@@ -18,13 +18,20 @@ import {
   resetDrafts as resetDraftsAction,
   saveDraftDetails,
   saveDraftPlacement,
+  savePublishedEventPlacements,
 } from "@/app/actions/season";
 import {
   getLatestPointsMapFromState,
   getLivePointsMapFromState,
   mergeSeasonEvents,
 } from "@/lib/season-state";
-import type { EventSnapshot, Placement, SeasonState, StoredEventResult } from "@/lib/types";
+import type {
+  EventPlacement,
+  EventSnapshot,
+  Placement,
+  SeasonState,
+  StoredEventResult,
+} from "@/lib/types";
 
 type SeasonContextValue = {
   state: SeasonState;
@@ -36,6 +43,10 @@ type SeasonContextValue = {
   removeResult: (resultId: string) => Promise<void>;
   resetResults: () => Promise<void>;
   publishResult: (resultId: string) => Promise<void>;
+  updateEventPlacements: (
+    eventId: string,
+    placements: EventPlacement[],
+  ) => Promise<void>;
   updateResult: (
     resultId: string,
     updater: (result: StoredEventResult) => StoredEventResult,
@@ -178,6 +189,13 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
     [runMutation],
   );
 
+  const updateEventPlacements = useCallback(
+    async (eventId: string, placements: EventPlacement[]) => {
+      await runMutation(() => savePublishedEventPlacements(eventId, placements));
+    },
+    [runMutation],
+  );
+
   const updateResult = useCallback(
     async (
       resultId: string,
@@ -239,6 +257,7 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
       removeResult,
       resetResults,
       publishResult,
+      updateEventPlacements,
       updateResult,
       getLatestPointsMap: () => getLatestPointsMapFromState(state),
       getLivePointsMap: () => getLivePointsMapFromState(state),
@@ -254,6 +273,7 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
       state,
       syncError,
       updateResult,
+      updateEventPlacements,
     ],
   );
 

@@ -10,9 +10,16 @@ import {
   publishDraftEvent,
   updateDraftEventDetails,
   updateDraftPlacement,
+  updatePublishedPlacements,
 } from "@/lib/db/season";
 import { mergeSeasonEvents } from "@/lib/season-state";
-import type { EventSnapshot, Placement, SeasonState, StoredEventResult } from "@/lib/types";
+import type {
+  EventPlacement,
+  EventSnapshot,
+  Placement,
+  SeasonState,
+  StoredEventResult,
+} from "@/lib/types";
 
 function revalidateSeasonPages() {
   revalidatePath("/");
@@ -65,6 +72,13 @@ export async function resetDrafts(): Promise<SeasonState> {
 
 export async function publishEvent(resultId: string): Promise<SeasonState> {
   return mutateSeason(() => publishDraftEvent(resultId));
+}
+
+export async function savePublishedEventPlacements(
+  eventId: string,
+  placements: EventPlacement[],
+): Promise<SeasonState> {
+  return mutateSeason(() => updatePublishedPlacements(eventId, placements));
 }
 
 export async function getMergedEvents(): Promise<EventSnapshot[]> {
