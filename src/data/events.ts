@@ -71,7 +71,7 @@ export const events: EventSnapshot[] = [
       { memberId: "shadi", points: 150 },
       { memberId: "sam", points: 90 },
       { memberId: "aaron", points: 80 },
-      { memberId: "nigel", points: 70 },
+      { memberId: "nigel", points: 50 },
     ],
   },
 ];

@@ -11,7 +11,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Without `POSTGRES_URL`, the app falls back to seeded data in [`src/data/events.ts`](src/data/events.ts).
+Without `POSTGRES_URL`, read-only pages fall back to seeded data in [`src/data/events.ts`](src/data/events.ts). Result writes require Postgres.
 
 ## Cross-device sync (Vercel Marketplace Postgres)
 
@@ -21,19 +21,20 @@ Season events and entered results are stored in Postgres so every device sees th
 
 1. In the [Vercel dashboard](https://vercel.com), open the project → **Storage** and add a Marketplace Postgres integration such as Neon.
 2. Vercel links `POSTGRES_URL` to the project automatically.
-3. For local dev, copy the connection string into `.env.local` (see [`.env.example`](.env.example)).
-4. Seed the 2026 season (creates the table and inserts the four existing events):
+3. Add `RESULTS_ADMIN_KEY` in Vercel and use the same key on `/events` when saving results.
+4. For local dev, copy the connection string and admin key into `.env.local` (see [`.env.example`](.env.example)).
+5. Seed the 2026 season (creates the relational tables and inserts the existing published events):
 
 ```bash
 npm run seed:season
 ```
 
-Safe to re-run — it skips insert if the season row already exists.
+Safe to re-run — it upserts the seeded published events and placements.
 
 ### Update standings after an event
 
 1. Open [`/events`](http://localhost:3000/events) on any device.
-2. Add the month, enter placements, and save — drafts sync to Postgres automatically.
+2. Enter the admin key, add the month, enter placements, and save — drafts sync to Postgres automatically.
 3. Completed valid months update the homepage leaderboard, timeline, and race chart for everyone.
 
 No redeploy needed for new results.
@@ -59,7 +60,7 @@ After connecting Postgres in Vercel, run `npm run seed:season` once with `POSTGR
 ## Project structure
 
 - `src/data/` — members, schedule slots, scoring rules, dev fallback events
-- `src/lib/db/` — Postgres read/write for season state
+- `src/lib/db/` — Postgres read/write for relational event results
 - `src/lib/` — points engine, timeline helpers, season merge logic
 - `src/app/actions/` — Server Actions for season sync
 - `src/components/` — Leaderboard, SeasonTimeline, Simulator UI, SeasonProvider

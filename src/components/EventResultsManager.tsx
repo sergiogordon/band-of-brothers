@@ -9,7 +9,6 @@ import { memberById, members } from "@/data/members";
 import { PLACEMENTS, placementLabel } from "@/data/scoring";
 import { rankMembers } from "@/lib/points";
 import {
-  defaultEventDate,
   emptyPlacementMap,
   getFutureSlot,
   getPlacementStatus,
@@ -96,14 +95,26 @@ export function EventResultsManager() {
     updateResult,
     isSyncing,
     syncError,
+    adminKey,
+    setAdminKey,
     getLivePointsMap,
   } = useSeasonState();
   const results = state.drafts;
 
-  const usedSlotIds = useMemo(
-    () => new Set(results.map((result) => result.slotId)),
-    [results],
-  );
+  const usedSlotIds = useMemo(() => {
+    const used = new Set(results.map((result) => result.slotId));
+
+    for (const event of state.events) {
+      const publishedSlot = futureEventSlots.find(
+        (slot) =>
+          event.id === `${slot.id}-result` ||
+          event.date.startsWith(`${slot.year}-${String(slot.month).padStart(2, "0")}`),
+      );
+      if (publishedSlot) used.add(publishedSlot.id);
+    }
+
+    return used;
+  }, [results, state.events]);
   const nextAvailableSlot = futureEventSlots.find(
     (slot) => !usedSlotIds.has(slot.id),
   );
@@ -117,19 +128,6 @@ export function EventResultsManager() {
     value: StoredEventResult[K],
   ) {
     updateResult(resultId, (result) => ({ ...result, [key]: value }));
-  }
-
-  function changeSlot(resultId: string, slotId: string) {
-    const slot = getFutureSlot(slotId);
-    if (!slot) return;
-
-    updateResult(resultId, (result) => ({
-      ...result,
-      id: `${slot.id}-result`,
-      slotId: slot.id,
-      name: `${slot.label} Event`,
-      date: defaultEventDate(slot),
-    }));
   }
 
   function updatePlacement(
@@ -171,7 +169,18 @@ export function EventResultsManager() {
                 Scoring: {PLACEMENTS.map(placementLabel).join(" · ")}
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:flex">
+            <div className="grid gap-3 sm:min-w-72">
+              <label className="text-xs font-semibold uppercase tracking-widest text-emerald-300/70">
+                Admin key
+                <input
+                  type="password"
+                  value={adminKey}
+                  onChange={(event) => setAdminKey(event.target.value)}
+                  placeholder="Required to save"
+                  className="mt-2 block w-full rounded-lg border border-emerald-800/70 bg-[#030806] px-3 py-2 text-sm normal-case tracking-normal text-stone-50"
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-2 sm:flex">
               <button
                 type="button"
                 onClick={() => nextAvailableSlot && void addResult(nextAvailableSlot.id)}
@@ -188,6 +197,7 @@ export function EventResultsManager() {
               >
                 Clear saved
               </button>
+              </div>
             </div>
           </div>
         </div>
@@ -253,7 +263,7 @@ export function EventResultsManager() {
                       Month
                       <select
                         value={result.slotId}
-                        onChange={(event) => changeSlot(result.id, event.target.value)}
+                        disabled
                         className="mt-2 block w-full rounded-lg border border-emerald-800/70 bg-[#030806] px-3 py-2 text-sm normal-case tracking-normal text-stone-50"
                       >
                         {futureEventSlots.map((slotOption) => {

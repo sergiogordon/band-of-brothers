@@ -8,6 +8,17 @@ const { sql } = require("@vercel/postgres");
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+const SEASON_ID = "2026";
+const MEMBERS = ["jack", "sergio", "shadi", "sam", "aaron", "nigel"];
+const POINT_TO_PLACEMENT = new Map([
+  [60, 1],
+  [40, 2],
+  [30, 3],
+  [20, 4],
+  [10, 5],
+  [0, 6],
+]);
+
 const SEED_EVENTS = [
   {
     id: "putt-shack-feb-2026",
@@ -78,12 +89,37 @@ const SEED_EVENTS = [
       { memberId: "shadi", points: 150 },
       { memberId: "sam", points: 90 },
       { memberId: "aaron", points: 80 },
-      { memberId: "nigel", points: 70 },
+      { memberId: "nigel", points: 50 },
     ],
   },
 ];
 
-const SEASON_ID = "2026";
+function inferPlacements(events) {
+  const currentPoints = Object.fromEntries(MEMBERS.map((memberId) => [memberId, 0]));
+  const placementsByEvent = new Map();
+
+  for (const event of events) {
+    const placements = [];
+
+    for (const memberId of MEMBERS) {
+      const nextPoints =
+        event.standings.find((standing) => standing.memberId === memberId)?.points ?? 0;
+      const delta = nextPoints - currentPoints[memberId];
+      const placement = POINT_TO_PLACEMENT.get(delta);
+
+      if (!placement) {
+        throw new Error(`Could not infer placement for ${memberId} in ${event.id}.`);
+      }
+
+      placements.push({ memberId, placement });
+      currentPoints[memberId] = nextPoints;
+    }
+
+    placementsByEvent.set(event.id, placements);
+  }
+
+  return placementsByEvent;
+}
 
 async function main() {
   if (!process.env.POSTGRES_URL) {
@@ -94,23 +130,45 @@ async function main() {
   const schema = readFileSync(join(__dirname, "schema.sql"), "utf8");
   await sql.query(schema);
 
-  const existing = await sql`
-    SELECT id FROM season_state WHERE id = ${SEASON_ID}
-  `;
+  const placementsByEvent = inferPlacements(SEED_EVENTS);
 
-  if (existing.rows.length > 0) {
-    console.log(`Season ${SEASON_ID} already seeded — skipping insert.`);
-    return;
+  for (const event of SEED_EVENTS) {
+    await sql`
+      INSERT INTO season_events (
+        id, season_id, slot_id, name, event_type, venue, date, status, updated_at
+      )
+      VALUES (
+        ${event.id},
+        ${SEASON_ID},
+        ${null},
+        ${event.name},
+        ${event.eventType},
+        ${event.venue ?? null},
+        ${event.date},
+        'published',
+        now()
+      )
+      ON CONFLICT (id) DO UPDATE
+      SET
+        name = EXCLUDED.name,
+        event_type = EXCLUDED.event_type,
+        venue = EXCLUDED.venue,
+        date = EXCLUDED.date,
+        status = 'published',
+        updated_at = now()
+    `;
+
+    for (const placement of placementsByEvent.get(event.id) ?? []) {
+      await sql`
+        INSERT INTO event_placements (event_id, member_id, placement, updated_at)
+        VALUES (${event.id}, ${placement.memberId}, ${placement.placement}, now())
+        ON CONFLICT (event_id, member_id) DO UPDATE
+        SET placement = EXCLUDED.placement, updated_at = now()
+      `;
+    }
   }
 
-  const data = { events: SEED_EVENTS, drafts: [] };
-
-  await sql`
-    INSERT INTO season_state (id, data, updated_at)
-    VALUES (${SEASON_ID}, ${JSON.stringify(data)}::jsonb, now())
-  `;
-
-  console.log(`Seeded season ${SEASON_ID} with ${SEED_EVENTS.length} events.`);
+  console.log(`Seeded season ${SEASON_ID} with ${SEED_EVENTS.length} published events.`);
 }
 
 main().catch((error) => {

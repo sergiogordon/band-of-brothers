@@ -6,30 +6,33 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
 import {
+  clearDraftResultPlacements,
+  createDraft,
   fetchSeasonState,
   publishEvent as publishEventAction,
+  removeDraft,
   resetDrafts as resetDraftsAction,
-  saveDrafts as saveDraftsAction,
+  saveDraftDetails,
+  saveDraftPlacement,
 } from "@/app/actions/season";
-import { SEASON_RESULTS_STORAGE_KEY } from "@/lib/season-results";
 import {
   getLatestPointsMapFromState,
   getLivePointsMapFromState,
   mergeSeasonEvents,
 } from "@/lib/season-state";
-import { normalizeStoredEventResult, sortStoredResults } from "@/lib/season-results";
-import type { EventSnapshot, SeasonState, StoredEventResult } from "@/lib/types";
+import type { EventSnapshot, Placement, SeasonState, StoredEventResult } from "@/lib/types";
 
 type SeasonContextValue = {
   state: SeasonState;
   mergedEvents: EventSnapshot[];
   isSyncing: boolean;
   syncError: string | null;
+  adminKey: string;
+  setAdminKey: (adminKey: string) => void;
   refresh: () => Promise<void>;
   addResult: (slotId: string) => Promise<void>;
   removeResult: (resultId: string) => Promise<void>;
@@ -44,30 +47,38 @@ type SeasonContextValue = {
 };
 
 const SeasonContext = createContext<SeasonContextValue | null>(null);
+const ADMIN_KEY_STORAGE_KEY = "band-of-brothers-results-admin-key";
 
-function readLegacyLocalDrafts(): StoredEventResult[] {
-  if (typeof window === "undefined") return [];
+function getChangedPlacements(
+  previous: StoredEventResult,
+  next: StoredEventResult,
+): Array<{ memberId: string; placement: Placement | "" }> {
+  const memberIds = new Set([
+    ...Object.keys(previous.placements),
+    ...Object.keys(next.placements),
+  ]);
+  const changed: Array<{ memberId: string; placement: Placement | "" }> = [];
 
-  try {
-    const raw = window.localStorage.getItem(SEASON_RESULTS_STORAGE_KEY);
-    if (!raw) return [];
+  for (const memberId of memberIds) {
+    const previousPlacement = previous.placements[memberId] ?? "";
+    const nextPlacement = next.placements[memberId] ?? "";
 
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-
-    return sortStoredResults(
-      parsed
-        .map((item) => normalizeStoredEventResult(item))
-        .filter((item): item is StoredEventResult => item !== null),
-    );
-  } catch {
-    return [];
+    if (previousPlacement !== nextPlacement) {
+      changed.push({ memberId, placement: nextPlacement });
+    }
   }
+
+  return changed;
 }
 
-function clearLegacyLocalDrafts() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(SEASON_RESULTS_STORAGE_KEY);
+function detailsChanged(previous: StoredEventResult, next: StoredEventResult): boolean {
+  return (
+    previous.id !== next.id ||
+    previous.slotId !== next.slotId ||
+    previous.name !== next.name ||
+    previous.eventType !== next.eventType ||
+    previous.date !== next.date
+  );
 }
 
 type SeasonProviderProps = {
@@ -79,24 +90,59 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
   const [state, setState] = useState(initialState);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const migratedRef = useRef(false);
+  const [adminKey, setAdminKeyState] = useState(() => {
+    if (typeof window === "undefined") return "";
+
+    try {
+      return window.localStorage.getItem(ADMIN_KEY_STORAGE_KEY) ?? "";
+    } catch {
+      return "";
+    }
+  });
 
   const mergedEvents = useMemo(() => mergeSeasonEvents(state), [state]);
 
-  const persistDrafts = useCallback(async (drafts: StoredEventResult[]) => {
-    setIsSyncing(true);
-    setSyncError(null);
-
+  const setAdminKey = useCallback((nextAdminKey: string) => {
+    setAdminKeyState(nextAdminKey);
     try {
-      const saved = await saveDraftsAction(drafts);
-      setState(saved);
-    } catch (error) {
-      setSyncError(error instanceof Error ? error.message : "Failed to save season data.");
-      throw error;
-    } finally {
-      setIsSyncing(false);
+      if (nextAdminKey) {
+        window.localStorage.setItem(ADMIN_KEY_STORAGE_KEY, nextAdminKey);
+      } else {
+        window.localStorage.removeItem(ADMIN_KEY_STORAGE_KEY);
+      }
+    } catch {
+      // Storage is a convenience only; the in-memory key still works.
     }
   }, []);
+
+  const requireAdminKey = useCallback(() => {
+    if (!adminKey.trim()) {
+      throw new Error("Enter the results admin key before saving changes.");
+    }
+
+    return adminKey;
+  }, [adminKey]);
+
+  const runMutation = useCallback(
+    async (operation: (key: string) => Promise<SeasonState>) => {
+      setIsSyncing(true);
+      setSyncError(null);
+
+      try {
+        const saved = await operation(requireAdminKey());
+        setState(saved);
+        return saved;
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to save season data.";
+        setSyncError(message);
+        throw error;
+      } finally {
+        setIsSyncing(false);
+      }
+    },
+    [requireAdminKey],
+  );
 
   const refresh = useCallback(async () => {
     setIsSyncing(true);
@@ -113,23 +159,6 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
   }, []);
 
   useEffect(() => {
-    if (migratedRef.current) return;
-    migratedRef.current = true;
-
-    const legacyDrafts = readLegacyLocalDrafts();
-    if (legacyDrafts.length === 0 || initialState.drafts.length > 0) return;
-
-    void (async () => {
-      try {
-        await persistDrafts(legacyDrafts);
-        clearLegacyLocalDrafts();
-      } catch {
-        // Keep legacy drafts locally if migration fails.
-      }
-    })();
-  }, [initialState.drafts.length, persistDrafts]);
-
-  useEffect(() => {
     function handleFocus() {
       void refresh();
     }
@@ -140,36 +169,28 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
 
   const addResult = useCallback(
     async (slotId: string) => {
-      const { createStoredEventResult } = await import("@/lib/season-results");
       if (state.drafts.some((result) => result.slotId === slotId)) return;
 
-      const nextDrafts = sortStoredResults([
-        ...state.drafts,
-        createStoredEventResult(slotId),
-      ]);
-      setState((current) => ({ ...current, drafts: nextDrafts }));
-
-      try {
-        await persistDrafts(nextDrafts);
-      } catch {
-        setState(state);
-      }
+      await runMutation((key) => createDraft(slotId, key));
     },
-    [persistDrafts, state],
+    [runMutation, state.drafts],
   );
 
   const removeResult = useCallback(
     async (resultId: string) => {
-      const nextDrafts = state.drafts.filter((result) => result.id !== resultId);
-      setState((current) => ({ ...current, drafts: nextDrafts }));
+      const previous = state;
+      setState((current) => ({
+        ...current,
+        drafts: current.drafts.filter((result) => result.id !== resultId),
+      }));
 
       try {
-        await persistDrafts(nextDrafts);
+        await runMutation((key) => removeDraft(resultId, key));
       } catch {
-        setState(state);
+        setState(previous);
       }
     },
-    [persistDrafts, state],
+    [runMutation, state],
   );
 
   const resetResults = useCallback(async () => {
@@ -177,32 +198,17 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
     setState((current) => ({ ...current, drafts: [] }));
 
     try {
-      const saved = await resetDraftsAction();
-      setState(saved);
-    } catch (error) {
+      await runMutation((key) => resetDraftsAction(key));
+    } catch {
       setState(previous);
-      setSyncError(error instanceof Error ? error.message : "Failed to clear saved results.");
     }
-  }, [state]);
+  }, [runMutation, state]);
 
   const publishResult = useCallback(
     async (resultId: string) => {
-      const result = state.drafts.find((draft) => draft.id === resultId);
-      if (!result) return;
-
-      setIsSyncing(true);
-      setSyncError(null);
-
-      try {
-        const saved = await publishEventAction(result);
-        setState(saved);
-      } catch (error) {
-        setSyncError(error instanceof Error ? error.message : "Failed to add event.");
-      } finally {
-        setIsSyncing(false);
-      }
+      await runMutation((key) => publishEventAction(resultId, key));
     },
-    [state],
+    [runMutation],
   );
 
   const updateResult = useCallback(
@@ -210,18 +216,50 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
       resultId: string,
       updater: (result: StoredEventResult) => StoredEventResult,
     ) => {
-      const nextDrafts = sortStoredResults(
-        state.drafts.map((result) => (result.id === resultId ? updater(result) : result)),
+      const previousState = state;
+      const previousResult = state.drafts.find((result) => result.id === resultId);
+      if (!previousResult) return;
+
+      const nextResult = updater(previousResult);
+      const nextDrafts = state.drafts.map((result) =>
+        result.id === resultId ? nextResult : result,
       );
       setState((current) => ({ ...current, drafts: nextDrafts }));
 
       try {
-        await persistDrafts(nextDrafts);
+        const placementChanges = getChangedPlacements(previousResult, nextResult);
+        const changedDetails = detailsChanged(previousResult, nextResult);
+
+        await runMutation(async (key) => {
+          let saved: SeasonState | null = null;
+
+          if (changedDetails) {
+            saved = await saveDraftDetails(nextResult, key);
+          }
+
+          if (
+            placementChanges.length > 0 &&
+            placementChanges.every((change) => change.placement === "")
+          ) {
+            saved = await clearDraftResultPlacements(nextResult.id, key);
+          } else {
+            for (const change of placementChanges) {
+              saved = await saveDraftPlacement(
+                nextResult.id,
+                change.memberId,
+                change.placement,
+                key,
+              );
+            }
+          }
+
+          return saved ?? fetchSeasonState();
+        });
       } catch {
-        setState(state);
+        setState(previousState);
       }
     },
-    [persistDrafts, state],
+    [runMutation, state],
   );
 
   const value = useMemo<SeasonContextValue>(
@@ -230,6 +268,8 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
       mergedEvents,
       isSyncing,
       syncError,
+      adminKey,
+      setAdminKey,
       refresh,
       addResult,
       removeResult,
@@ -241,12 +281,14 @@ export function SeasonProvider({ initialState, children }: SeasonProviderProps) 
     }),
     [
       addResult,
+      adminKey,
       isSyncing,
       mergedEvents,
+      publishResult,
       refresh,
       removeResult,
       resetResults,
-      publishResult,
+      setAdminKey,
       state,
       syncError,
       updateResult,

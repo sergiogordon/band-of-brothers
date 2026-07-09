@@ -1,12 +1,214 @@
 import { sql } from "@vercel/postgres";
 import { events as seedEvents } from "@/data/events";
-import { emptySeasonState, normalizeSeasonState } from "@/lib/season-state";
-import type { SeasonState } from "@/lib/types";
+import { members } from "@/data/members";
+import { applyPlacements, getSortedEvents } from "@/lib/points";
+import {
+  createStoredEventResult,
+  emptyPlacementMap,
+  getFutureSlot,
+  normalizeStoredEventResult,
+  placementsRecordToFilled,
+  sortStoredResults,
+} from "@/lib/season-results";
+import { emptySeasonState } from "@/lib/season-state";
+import type {
+  EventPlacement,
+  EventSnapshot,
+  Placement,
+  SeasonState,
+  StoredEventResult,
+} from "@/lib/types";
 
 export const SEASON_ID = "2026";
 
-function hasDatabase(): boolean {
+type DbEventRow = {
+  id: string;
+  season_id: string;
+  slot_id: string | null;
+  name: string;
+  event_type: string;
+  venue: string | null;
+  date: Date | string;
+  status: "draft" | "published";
+};
+
+type DbPlacementRow = {
+  event_id: string;
+  member_id: string;
+  placement: number;
+};
+
+type EventInput = {
+  id: string;
+  slotId: string | null;
+  name: string;
+  eventType: string;
+  venue?: string;
+  date: string;
+  status: "draft" | "published";
+};
+
+const memberIds = new Set(members.map((member) => member.id));
+const pointToPlacement = new Map<number, Placement>([
+  [60, 1],
+  [40, 2],
+  [30, 3],
+  [20, 4],
+  [10, 5],
+  [0, 6],
+]);
+
+export function hasDatabase(): boolean {
   return Boolean(process.env.POSTGRES_URL);
+}
+
+export function assertDatabaseConfigured() {
+  if (!hasDatabase()) {
+    throw new Error("Database is not configured. Add POSTGRES_URL before saving results.");
+  }
+}
+
+function formatDate(value: Date | string): string {
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  return value.slice(0, 10);
+}
+
+function standingsFromPlacements(
+  basePoints: Record<string, number>,
+  placements: EventPlacement[],
+): Record<string, number> {
+  return applyPlacements(basePoints, placements);
+}
+
+function rowsToPlacements(rows: DbPlacementRow[]): Record<string, Placement | ""> {
+  const placements = emptyPlacementMap();
+
+  for (const row of rows) {
+    if (!memberIds.has(row.member_id)) continue;
+    if (row.placement < 1 || row.placement > 6) continue;
+    placements[row.member_id] = row.placement as Placement;
+  }
+
+  return placements;
+}
+
+function placementRowsForEvent(
+  eventId: string,
+  placementRows: DbPlacementRow[],
+): DbPlacementRow[] {
+  return placementRows.filter((row) => row.event_id === eventId);
+}
+
+function buildPublishedSnapshots(
+  eventRows: DbEventRow[],
+  placementRows: DbPlacementRow[],
+): EventSnapshot[] {
+  let points = Object.fromEntries(members.map((member) => [member.id, 0]));
+  const snapshots: EventSnapshot[] = [];
+
+  for (const event of eventRows) {
+    const placements = placementRowsForEvent(event.id, placementRows)
+      .map((row) => ({
+        memberId: row.member_id,
+        placement: row.placement as Placement,
+      }))
+      .filter((placement) => memberIds.has(placement.memberId));
+
+    points = standingsFromPlacements(points, placements);
+    snapshots.push({
+      id: event.id,
+      name: event.name,
+      eventType: event.event_type,
+      venue: event.venue ?? undefined,
+      date: formatDate(event.date),
+      standings: members.map((member) => ({
+        memberId: member.id,
+        points: points[member.id] ?? 0,
+      })),
+    });
+  }
+
+  return snapshots;
+}
+
+function buildDrafts(
+  eventRows: DbEventRow[],
+  placementRows: DbPlacementRow[],
+): StoredEventResult[] {
+  const drafts = eventRows
+    .map((event) => {
+      if (!event.slot_id || !getFutureSlot(event.slot_id)) return null;
+
+      return normalizeStoredEventResult({
+        id: event.id,
+        slotId: event.slot_id,
+        name: event.name,
+        eventType: event.event_type,
+        date: formatDate(event.date),
+        placements: rowsToPlacements(placementRowsForEvent(event.id, placementRows)),
+      });
+    })
+    .filter((draft): draft is StoredEventResult => draft !== null);
+
+  return sortStoredResults(drafts);
+}
+
+function inferSeedPlacements(events: EventSnapshot[]): Map<string, EventPlacement[]> {
+  const sortedEvents = getSortedEvents(events);
+  const currentPoints = Object.fromEntries(members.map((member) => [member.id, 0]));
+  const placementsByEvent = new Map<string, EventPlacement[]>();
+
+  for (const event of sortedEvents) {
+    const placements: EventPlacement[] = [];
+
+    for (const member of members) {
+      const nextPoints =
+        event.standings.find((standing) => standing.memberId === member.id)?.points ?? 0;
+      const delta = nextPoints - (currentPoints[member.id] ?? 0);
+      const placement = pointToPlacement.get(delta);
+
+      if (!placement) {
+        throw new Error(`Could not infer placement for ${member.id} in ${event.id}.`);
+      }
+
+      placements.push({ memberId: member.id, placement });
+      currentPoints[member.id] = nextPoints;
+    }
+
+    placementsByEvent.set(event.id, placements);
+  }
+
+  return placementsByEvent;
+}
+
+export function seedPlacementsForEvent(eventId: string): EventPlacement[] {
+  return inferSeedPlacements(seedEvents).get(eventId) ?? [];
+}
+
+async function listEventRows(): Promise<DbEventRow[]> {
+  const result = await sql<DbEventRow>`
+    SELECT id, season_id, slot_id, name, event_type, venue, date, status
+    FROM season_events
+    WHERE season_id = ${SEASON_ID}
+    ORDER BY date ASC, id ASC
+  `;
+
+  return result.rows;
+}
+
+async function listPlacementRows(): Promise<DbPlacementRow[]> {
+  const result = await sql<DbPlacementRow>`
+    SELECT event_id, member_id, placement
+    FROM event_placements
+    WHERE event_id IN (
+      SELECT id FROM season_events WHERE season_id = ${SEASON_ID}
+    )
+  `;
+
+  return result.rows;
 }
 
 export async function getSeasonState(): Promise<SeasonState> {
@@ -15,33 +217,237 @@ export async function getSeasonState(): Promise<SeasonState> {
   }
 
   try {
-    const result = await sql`
-      SELECT data FROM season_state WHERE id = ${SEASON_ID}
-    `;
+    const [eventRows, placementRows] = await Promise.all([
+      listEventRows(),
+      listPlacementRows(),
+    ]);
 
-    if (result.rows.length === 0) {
+    if (eventRows.length === 0) {
       return emptySeasonState(seedEvents);
     }
 
-    return normalizeSeasonState(result.rows[0].data);
+    return {
+      events: buildPublishedSnapshots(
+        eventRows.filter((event) => event.status === "published"),
+        placementRows,
+      ),
+      drafts: buildDrafts(
+        eventRows.filter((event) => event.status === "draft"),
+        placementRows,
+      ),
+    };
   } catch {
     return emptySeasonState(seedEvents);
   }
 }
 
-export async function saveSeasonState(state: SeasonState): Promise<SeasonState> {
-  const normalized = normalizeSeasonState(state);
+async function assertDraftEvent(eventId: string): Promise<DbEventRow> {
+  const result = await sql<DbEventRow>`
+    SELECT id, season_id, slot_id, name, event_type, venue, date, status
+    FROM season_events
+    WHERE season_id = ${SEASON_ID} AND id = ${eventId}
+  `;
+  const event = result.rows[0];
 
-  if (!hasDatabase()) {
-    return normalized;
+  if (!event) {
+    throw new Error("Event draft was not found. Refresh and try again.");
+  }
+
+  if (event.status !== "draft") {
+    throw new Error("Published events cannot be edited from this screen.");
+  }
+
+  return event;
+}
+
+export async function createDraftEvent(slotId: string): Promise<SeasonState> {
+  assertDatabaseConfigured();
+
+  const normalized = createStoredEventResult(slotId);
+  const existing = await sql<{ id: string }>`
+    SELECT id
+    FROM season_events
+    WHERE season_id = ${SEASON_ID}
+      AND (id = ${normalized.id} OR slot_id = ${normalized.slotId})
+    LIMIT 1
+  `;
+
+  if (existing.rows.length > 0) {
+    throw new Error("That event month already exists.");
+  }
+
+  await upsertEvent({
+    id: normalized.id,
+    slotId: normalized.slotId,
+    name: normalized.name,
+    eventType: normalized.eventType,
+    date: normalized.date,
+    status: "draft",
+  });
+
+  return getSeasonState();
+}
+
+export async function updateDraftEventDetails(
+  result: StoredEventResult,
+): Promise<SeasonState> {
+  assertDatabaseConfigured();
+
+  const normalized = normalizeStoredEventResult(result);
+  if (!normalized) {
+    throw new Error("Event draft is invalid.");
+  }
+
+  await assertDraftEvent(normalized.id);
+
+  await upsertEvent({
+    id: normalized.id,
+    slotId: normalized.slotId,
+    name: normalized.name,
+    eventType: normalized.eventType,
+    date: normalized.date,
+    status: "draft",
+  });
+
+  return getSeasonState();
+}
+
+export async function updateDraftPlacement(
+  eventId: string,
+  memberId: string,
+  placement: Placement | "",
+): Promise<SeasonState> {
+  assertDatabaseConfigured();
+  await assertDraftEvent(eventId);
+
+  if (!memberIds.has(memberId)) {
+    throw new Error("Unknown member.");
+  }
+
+  try {
+    if (placement === "") {
+      await sql`
+        DELETE FROM event_placements
+        WHERE event_id = ${eventId} AND member_id = ${memberId}
+      `;
+    } else {
+      await sql`
+        INSERT INTO event_placements (event_id, member_id, placement, updated_at)
+        VALUES (${eventId}, ${memberId}, ${placement}, now())
+        ON CONFLICT (event_id, member_id) DO UPDATE
+        SET placement = EXCLUDED.placement, updated_at = now()
+      `;
+    }
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "23505"
+    ) {
+      throw new Error("That placement is already assigned for this event.");
+    }
+
+    throw error;
+  }
+
+  return getSeasonState();
+}
+
+export async function clearDraftPlacements(eventId: string): Promise<SeasonState> {
+  assertDatabaseConfigured();
+  await assertDraftEvent(eventId);
+
+  await sql`
+    DELETE FROM event_placements
+    WHERE event_id = ${eventId}
+  `;
+
+  return getSeasonState();
+}
+
+export async function deleteDraftEvent(eventId: string): Promise<SeasonState> {
+  assertDatabaseConfigured();
+  await assertDraftEvent(eventId);
+
+  await sql`
+    DELETE FROM season_events
+    WHERE season_id = ${SEASON_ID} AND id = ${eventId} AND status = 'draft'
+  `;
+
+  return getSeasonState();
+}
+
+export async function deleteAllDraftEvents(): Promise<SeasonState> {
+  assertDatabaseConfigured();
+
+  await sql`
+    DELETE FROM season_events
+    WHERE season_id = ${SEASON_ID} AND status = 'draft'
+  `;
+
+  return getSeasonState();
+}
+
+export async function publishDraftEvent(eventId: string): Promise<SeasonState> {
+  assertDatabaseConfigured();
+  const current = await getSeasonState();
+  const draft = current.drafts.find((item) => item.id === eventId);
+
+  if (!draft) {
+    throw new Error("Event draft was not found. Refresh and try again.");
+  }
+
+  const firstDraft = current.drafts[0];
+  if (firstDraft?.id !== draft.id) {
+    throw new Error("Publish earlier events before adding this event.");
+  }
+
+  const placements = placementsRecordToFilled(draft.placements);
+  const usedPlacements = new Set(placements.map((item) => item.placement));
+  const usedMembers = new Set(placements.map((item) => item.memberId));
+
+  if (
+    placements.length !== members.length ||
+    usedPlacements.size !== members.length ||
+    usedMembers.size !== members.length
+  ) {
+    throw new Error("Event must have valid, complete placements before publishing.");
   }
 
   await sql`
-    INSERT INTO season_state (id, data, updated_at)
-    VALUES (${SEASON_ID}, ${JSON.stringify(normalized)}::jsonb, now())
-    ON CONFLICT (id) DO UPDATE
-    SET data = EXCLUDED.data, updated_at = now()
+    UPDATE season_events
+    SET status = 'published', updated_at = now()
+    WHERE season_id = ${SEASON_ID} AND id = ${draft.id} AND status = 'draft'
   `;
 
-  return normalized;
+  return getSeasonState();
+}
+
+async function upsertEvent(input: EventInput) {
+  await sql`
+    INSERT INTO season_events (
+      id, season_id, slot_id, name, event_type, venue, date, status, updated_at
+    )
+    VALUES (
+      ${input.id},
+      ${SEASON_ID},
+      ${input.slotId},
+      ${input.name},
+      ${input.eventType},
+      ${input.venue ?? null},
+      ${input.date},
+      ${input.status},
+      now()
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET
+      slot_id = EXCLUDED.slot_id,
+      name = EXCLUDED.name,
+      event_type = EXCLUDED.event_type,
+      venue = EXCLUDED.venue,
+      date = EXCLUDED.date,
+      status = EXCLUDED.status,
+      updated_at = now()
+  `;
 }
