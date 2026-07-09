@@ -135,7 +135,7 @@ function buildPublishedSnapshots(
   placementRows: DbPlacementRow[],
   adjustmentRows: DbAdjustmentRow[],
 ): EventSnapshot[] {
-  let points = Object.fromEntries(members.map((member) => [member.id, 0]));
+  let eventPoints = Object.fromEntries(members.map((member) => [member.id, 0]));
   const snapshots: EventSnapshot[] = [];
 
   for (const event of eventRows) {
@@ -146,8 +146,12 @@ function buildPublishedSnapshots(
       }))
       .filter((placement) => memberIds.has(placement.memberId));
 
-    points = standingsFromPlacements(points, placements);
-    points = applyAdjustments(points, formatDate(event.date), adjustmentRows);
+    eventPoints = standingsFromPlacements(eventPoints, placements);
+    const points = applyAdjustments(
+      eventPoints,
+      formatDate(event.date),
+      adjustmentRows,
+    );
     snapshots.push({
       id: event.id,
       name: event.name,

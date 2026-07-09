@@ -159,6 +159,48 @@ test("a July event adds points from placements instead of client totals", () => 
   );
 });
 
+test("the July correction changes only Nigel's current total", () => {
+  const juneStandings = {
+    jack: 230,
+    sergio: 200,
+    shadi: 150,
+    sam: 90,
+    aaron: 80,
+    nigel: 50,
+  };
+  const julyPlacements = [
+    { memberId: "shadi", placement: 1 },
+    { memberId: "aaron", placement: 2 },
+    { memberId: "jack", placement: 3 },
+    { memberId: "sergio", placement: 4 },
+    { memberId: "nigel", placement: 5 },
+    { memberId: "sam", placement: 6 },
+  ];
+
+  const julyStandings = applyPlacements(juneStandings, julyPlacements);
+  const correctedJulyStandings = {
+    ...julyStandings,
+    nigel: julyStandings.nigel + 20,
+  };
+
+  assert.deepEqual(juneStandings, {
+    jack: 230,
+    sergio: 200,
+    shadi: 150,
+    sam: 90,
+    aaron: 80,
+    nigel: 50,
+  });
+  assert.deepEqual(correctedJulyStandings, {
+    jack: 260,
+    sergio: 220,
+    shadi: 210,
+    sam: 90,
+    aaron: 120,
+    nigel: 80,
+  });
+});
+
 test("duplicate placements are invalid", () => {
   assert.throws(() =>
     assertValidPlacements([
