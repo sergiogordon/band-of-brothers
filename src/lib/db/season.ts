@@ -206,11 +206,15 @@ async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+  `);
 
+  await sql.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS season_events_season_slot_unique
       ON season_events (season_id, slot_id)
       WHERE slot_id IS NOT NULL;
+  `);
 
+  await sql.query(`
     CREATE TABLE IF NOT EXISTS event_placements (
       event_id   TEXT NOT NULL REFERENCES season_events(id) ON DELETE CASCADE,
       member_id  TEXT NOT NULL,
