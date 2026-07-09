@@ -14,4 +14,11 @@ export const seasonAdjustments: SeasonAdjustment[] = [
     reason: "Miscellaneous bonus for Bowling correction",
     effectiveDate: "2026-06-01",
   },
+  {
+    id: "nigel-july-total-correction-2026",
+    memberId: "nigel",
+    points: 10,
+    reason: "Miscellaneous bonus for July total correction",
+    effectiveDate: "2026-07-06",
+  },
 ];
